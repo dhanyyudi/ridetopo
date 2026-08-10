@@ -1,0 +1,78 @@
+:root {
+  /* Colors - Teal Terrain palette */
+  --color-primary: #0F766E;
+  --color-primary-light: #CCFBF1;
+  --color-primary-dark: #115E59;
+  --color-surface: #F7FAF9;
+  --color-surface-alt: #EDF4F2;
+  --color-text-primary: #14201E;
+  --color-text-secondary: #5E6F6D;
+  --color-text-tertiary: #8B9E9B;
+  --color-white: #FFFFFF;
+  --color-border: #DDE8E5;
+  --color-border-light: #EDF4F2;
+
+  /* Terrain semantics */
+  --color-climb: #EA580C;
+  --color-climb-light: #FFF7ED;
+  --color-flat: #0F766E;
+  --color-descent: #2563EB;
+  --color-descent-light: #EFF6FF;
+
+  /* Feedback */
+  --color-error: #DC2626;
+  --color-error-light: #FEF2F2;
+  --color-warning: #D97706;
+  --color-warning-light: #FFFBEB;
+  --color-success: #059669;
+  --color-success-light: #ECFDF5;
+
+  /* Spacing (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "Cascadia Code", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  /* Shadows (minimal) */
+  --shadow-sm: 0 1px 2px rgba(20, 32, 30, 0.06);
+  --shadow-md: 0 2px 8px rgba(20, 32, 30, 0.08);
+  --shadow-lg: 0 4px 16px rgba(20, 32, 30, 0.1);
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+
+  /* Layout */
+  --header-height-compact: 56px;
+  --header-height-wide: 64px;
+  --panel-wide-min: 400px;
+  --panel-wide-max: 440px;
+  --min-width: 320px;
+}

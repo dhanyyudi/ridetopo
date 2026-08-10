@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "valhallaBaseUrl": "https://valhalla.dhanypedia.it.com",
+  "nominatimBaseUrl": "https://nominatim.openstreetmap.org",
+  "basemapStyleUrl": "https://tiles.openfreemap.org/styles/liberty",
+  "geocodingEnabled": true
+}
