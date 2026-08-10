@@ -1,0 +1,26 @@
+{
+  "trip": {
+    "status": 0,
+    "status_message": "Found route",
+    "units": "kilometers",
+    "language": "id-ID",
+    "legs": [
+      {
+        "shape": "kz~fA_ehsWb@w@h@c@LY\\E\\EdCcA",
+        "summary": {
+          "length": 12.5,
+          "time": 1800,
+          "min_lat": -6.210,
+          "max_lat": -6.180,
+          "min_lon": 106.820,
+          "max_lon": 106.850
+        },
+        "elevation": [5, 6, 7, 8, 9, 8, 7, 6, 5]
+      }
+    ],
+    "summary": {
+      "length": 12.5,
+      "time": 1800
+    }
+  }
+}

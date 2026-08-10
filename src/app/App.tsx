@@ -4,6 +4,7 @@ import { AppShell } from "./AppShell";
 import { loadRuntimeConfig } from "@/config/load-runtime-config";
 import type { AppView } from "./app-view";
 import { COPY } from "@/content/id";
+import { RouteComposer } from "@/features/route/RouteComposer";
 import "@/styles/global.css";
 import "@/styles/components.css";
 import "@/styles/map.css";
@@ -41,29 +42,7 @@ function AboutView({ onBack }: { onBack: () => void }) {
 }
 
 function ComposerView() {
-  return (
-    <div style={{
-      padding: "var(--space-6, 1.5rem)",
-      maxWidth: "640px",
-      margin: "0 auto",
-      width: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      flex: 1,
-      textAlign: "center",
-      gap: "1rem",
-    }}>
-      <img src="/brand/logo-mark.svg" alt="" width="64" height="64" />
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>
-        {COPY.appTagline}
-      </h2>
-      <p style={{ color: "var(--color-text-secondary)" }}>
-        Perencana rute akan tersedia di sini.
-      </p>
-    </div>
-  );
+  return <RouteComposer />;
 }
 
 export function App() {

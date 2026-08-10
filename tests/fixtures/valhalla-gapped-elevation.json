@@ -1,0 +1,17 @@
+{
+  "trip": {
+    "status": 0,
+    "status_message": "Found route",
+    "legs": [
+      {
+        "shape": "kz~fA_ehsWb@w@h@c@LY\\E\\EdCcA",
+        "summary": {
+          "length": 3.0,
+          "time": 450
+        },
+        "elevation": [5, 6, null, null, 8, 9, 10, null, null, null, null, 12, 14, 15, 16]
+      }
+    ],
+    "summary": { "length": 3.0, "time": 450 }
+  }
+}

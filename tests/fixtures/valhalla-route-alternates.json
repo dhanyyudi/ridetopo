@@ -1,0 +1,46 @@
+{
+  "trip": {
+    "status": 0,
+    "status_message": "Found route with alternates",
+    "units": "kilometers",
+    "legs": [
+      {
+        "shape": "kz~fA_ehsWb@w@h@c@",
+        "summary": {
+          "length": 8.2,
+          "time": 1200,
+          "min_lat": -6.210,
+          "max_lat": -6.180,
+          "min_lon": 106.820,
+          "max_lon": 106.850
+        }
+      },
+      {
+        "shape": "kz~fA_iisWb@o@f@a@",
+        "summary": {
+          "length": 9.8,
+          "time": 1500,
+          "min_lat": -6.215,
+          "max_lat": -6.185,
+          "min_lon": 106.825,
+          "max_lon": 106.855
+        }
+      },
+      {
+        "shape": "kz~fA_iesW`@u@d@c@",
+        "summary": {
+          "length": 11.0,
+          "time": 1650,
+          "min_lat": -6.212,
+          "max_lat": -6.182,
+          "min_lon": 106.818,
+          "max_lon": 106.848
+        }
+      }
+    ],
+    "summary": {
+      "length": 8.2,
+      "time": 1200
+    }
+  }
+}

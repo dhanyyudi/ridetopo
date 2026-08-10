@@ -1,0 +1,34 @@
+{
+  "edges": [
+    {
+      "begin_shape_index": 0,
+      "end_shape_index": 5,
+      "names": ["Jalan Sudirman"],
+      "road_class": "primary",
+      "surface": "asphalt",
+      "unpaved": false,
+      "use": "road",
+      "way_id": 12345
+    },
+    {
+      "begin_shape_index": 5,
+      "end_shape_index": 10,
+      "names": ["Jalan Thamrin"],
+      "road_class": "primary",
+      "surface": "asphalt",
+      "unpaved": false,
+      "use": "road",
+      "way_id": 12346
+    },
+    {
+      "begin_shape_index": 10,
+      "end_shape_index": 15,
+      "names": [],
+      "road_class": "residential",
+      "surface": null,
+      "unpaved": false,
+      "use": null,
+      "way_id": 12347
+    }
+  ]
+}
