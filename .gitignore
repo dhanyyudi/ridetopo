@@ -1,0 +1,55 @@
+# Local product planning and agent work (never publish)
+/plan/
+/.superpowers/
+/docs/superpowers/plans/
+/.codex/
+/.agents/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+.npmrc
+.yarnrc.yml
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+credentials/
+secrets/
+auth.json
+service-account*.json
+wrangler.toml.local
+
+# Cloudflare and local deployment state
+.wrangler/
+.cloudflare/
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Logs and local tooling
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+playwright-report/
+test-results/
+blob-report/

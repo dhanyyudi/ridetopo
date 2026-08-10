@@ -1,0 +1,41 @@
+#!/bin/bash
+set -eu
+
+blocked=0
+staged_paths_file="$(mktemp "${TMPDIR:-/tmp}/ridetopo-staged.XXXXXX")"
+trap 'rm -f "$staged_paths_file"' EXIT
+git diff --cached --name-only --diff-filter=ACMR -z > "$staged_paths_file"
+
+while IFS= read -r -d '' path; do
+  case "$path" in
+    plan/*|.superpowers/*|docs/superpowers/plans/*|.codex/*|.agents/*)
+      echo "BLOCKED: private planning/agent file is staged: $path" >&2
+      blocked=1
+      ;;
+    .env|.env.*|.dev.vars|.dev.vars.*|.npmrc|*.pem|*.key|*.p12|*.pfx|*.jks|*.keystore|credentials/*|secrets/*|auth.json|service-account*.json)
+      if [ "$path" != ".env.example" ]; then
+        echo "BLOCKED: credential-like file is staged: $path" >&2
+        blocked=1
+      fi
+      ;;
+  esac
+
+  if git show ":$path" 2>/dev/null | LC_ALL=C grep -Iq .; then
+    if git show ":$path" | LC_ALL=C grep -Eq -- '-----BEGIN (RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._~+/-]{16,}'; then
+      echo "BLOCKED: high-confidence secret pattern detected in staged file: $path" >&2
+      blocked=1
+    fi
+
+    if git show ":$path" | LC_ALL=C grep -Ei "(API_KEY|API_TOKEN|ACCESS_TOKEN|CLIENT_SECRET|PASSWORD|PRIVATE_KEY)[[:space:]]*[:=][[:space:]]*['\"]?[A-Za-z0-9._~+/-]{16,}" | LC_ALL=C grep -Eiv 'example|placeholder|changeme|dummy|your[_-]|test[_-]' >/dev/null; then
+      echo "BLOCKED: credential assignment detected in staged file: $path" >&2
+      blocked=1
+    fi
+  fi
+done < "$staged_paths_file"
+
+if [ "$blocked" -ne 0 ]; then
+  echo "Commit stopped. Remove the protected file or secret from staging." >&2
+  exit 1
+fi
+
+exit 0
