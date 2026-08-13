@@ -1,7 +1,7 @@
 # Bukti Implementasi — RideTopo P0 Remediation
 
 **Branch:** fix/p0-audit-remediation
-**HEAD:** `0efc10c4cdc87fdbef7a6cd5b1835f32d9b2e9ad` (sebelum commit WP4; diperbarui pada commit final)
+**HEAD:** `ef1de9f` (HEAD terverifikasi saat matriks final dijalankan; lihat `git rev-parse HEAD`)
 **Tanggal audit:** 13 Agustus 2026
 
 ## Ringkasan
