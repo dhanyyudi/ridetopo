@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { fillJourney } from "./helpers";
 
 /**
  * Mocked full journey: empty context -> search A -> map-pin B -> plan ->
@@ -89,21 +90,8 @@ test.describe("route planning journey", () => {
     await expect(page.getByText("Titik mulai")).toBeVisible();
     await expect(page.getByText("Tujuan")).toBeVisible();
 
-    /* Search fills A */
-    await page.getByRole("button", { name: "Titik mulai", exact: true }).click();
-    await page.getByLabel("Cari lokasi...").fill("Monas");
-    await page.getByRole("button", { name: "Cari", exact: true }).click();
-    await page.getByRole("option", { name: /Monumen Nasional/ }).click();
-
-    /* A is filled */
-    await expect(page.getByRole("button", { name: "Titik mulai" }).first()).toContainText("Monumen Nasional");
-
-    /* Map pin fills B */
-    await page.getByRole("button", { name: /Pilih di peta: Tujuan/ }).click();
-    await expect(page.getByRole("dialog", { name: "Pilih di peta" })).toBeVisible();
-    await expect(page.locator(".map-picker-canvas[data-map-ready=true]")).toBeVisible();
-    await page.locator(".map-picker-canvas").click({ position: { x: 200, y: 200 } });
-    await page.getByRole("button", { name: "Simpan" }).click({ force: true });
+    /* Search fills A + map pin fills B */
+    await fillJourney(page);
     await expect(page.getByText("Titik pilihan")).toBeVisible();
 
     /* CTA sends exactly one route request */
@@ -130,16 +118,7 @@ test.describe("route planning journey", () => {
     await mockProviders(page);
     await page.goto("/");
 
-    await page.getByRole("button", { name: "Titik mulai", exact: true }).click();
-    await page.getByLabel("Cari lokasi...").fill("Monas");
-    await page.getByRole("button", { name: "Cari", exact: true }).click();
-    await page.getByRole("option", { name: /Monumen Nasional/ }).click();
-
-    await page.getByRole("button", { name: /Pilih di peta: Tujuan/ }).click();
-    await expect(page.locator(".map-picker-canvas[data-map-ready=true]")).toBeVisible();
-    await page.locator(".map-picker-canvas").click({ position: { x: 200, y: 200 } });
-    await page.getByRole("button", { name: "Simpan" }).click({ force: true });
-
+    await fillJourney(page);
     await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
     await expect(page.getByText("Hasil rute")).toBeVisible();
 
@@ -162,15 +141,7 @@ test.describe("route planning journey", () => {
     await page.goto("/");
 
     /* Open search, choose A and B without planning */
-    await page.getByRole("button", { name: "Titik mulai", exact: true }).click();
-    await page.getByLabel("Cari lokasi...").fill("Monas");
-    await page.getByRole("button", { name: "Cari", exact: true }).click();
-    await page.getByRole("option", { name: /Monumen Nasional/ }).click();
-
-    await page.getByRole("button", { name: /Pilih di peta: Tujuan/ }).click();
-    await expect(page.locator(".map-picker-canvas[data-map-ready=true]")).toBeVisible();
-    await page.locator(".map-picker-canvas").click({ position: { x: 200, y: 200 } });
-    await page.getByRole("button", { name: "Simpan" }).click({ force: true });
+    await fillJourney(page);
 
     expect(routeRequestCount).toBe(0);
   });

@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { buildValhallaRequest } from "../../src/providers/routing/build-valhalla-request";
-import { normalizeValhallaResponse } from "../../src/providers/routing/normalize-valhalla-response";
+import {
+  normalizeValhallaResponse,
+  normalizeAlternateTrips,
+  buildElevationSamples,
+  ValhallaResponseError,
+} from "../../src/providers/routing/normalize-valhalla-response";
 import type { ProviderRouteRequest } from "../../src/providers/contracts";
 import type { Position } from "../../src/domain/geo";
+import type { ValhallaRouteResponse } from "../../src/providers/routing/valhalla-types";
 
 const sampleRequest: ProviderRouteRequest = {
   locations: [[106.821, -6.201] as Position, [106.851, -6.181] as Position],
@@ -13,85 +19,209 @@ const sampleRequest: ProviderRouteRequest = {
   elevationIntervalMeters: 30,
 };
 
-describe("Valhalla contract", () => {
-  describe("buildValhallaRequest", () => {
-    it("builds road bike request", () => {
+describe("Valhalla request contract", () => {
+  describe("standard preferences send no hidden costing overrides", () => {
+    it("omits maneuver_penalty, use_roads, and use_hills", () => {
       const req = buildValhallaRequest(sampleRequest);
       expect(req.costing).toBe("bicycle");
-      expect(req.costing_options?.bicycle?.bicycle_type).toBe("road");
-    });
-
-    it("builds commuter bike request", () => {
-      const req = buildValhallaRequest({ ...sampleRequest, profile: "commuter-bike" });
-      expect(req.costing_options?.bicycle?.bicycle_type).toBe("hybrid");
-    });
-
-    it("omits use_roads for standard preference", () => {
-      const req = buildValhallaRequest(sampleRequest);
+      expect(req.costing_options?.bicycle?.maneuver_penalty).toBeUndefined();
       expect(req.costing_options?.bicycle?.use_roads).toBeUndefined();
-    });
-
-    it("sets use_roads for small-roads preference", () => {
-      const req = buildValhallaRequest({ ...sampleRequest, roadPreference: "small-roads" });
-      expect(req.costing_options?.bicycle?.use_roads).toBe(0.25);
-    });
-
-    it("omits use_hills for standard preference", () => {
-      const req = buildValhallaRequest(sampleRequest);
       expect(req.costing_options?.bicycle?.use_hills).toBeUndefined();
     });
 
-    it("sets use_hills for flatter preference", () => {
+    it("maps Road Bike to road and Commuter Bike to hybrid", () => {
+      expect(buildValhallaRequest(sampleRequest).costing_options?.bicycle?.bicycle_type).toBe("road");
+      expect(
+        buildValhallaRequest({ ...sampleRequest, profile: "commuter-bike" }).costing_options?.bicycle
+          ?.bicycle_type,
+      ).toBe("hybrid");
+    });
+
+    it("sets use_roads only for Jalan Kecil", () => {
+      const req = buildValhallaRequest({ ...sampleRequest, roadPreference: "small-roads" });
+      expect(req.costing_options?.bicycle?.use_roads).toBe(0.25);
+      expect(req.costing_options?.bicycle?.use_hills).toBeUndefined();
+    });
+
+    it("sets use_hills only for Lebih Landai", () => {
       const req = buildValhallaRequest({ ...sampleRequest, terrainPreference: "flatter" });
       expect(req.costing_options?.bicycle?.use_hills).toBe(0.25);
-    });
-
-    it("caps exclusions at 50", () => {
-      const manyExclusions = Array.from({ length: 60 }, (_, i) => [i * 0.001, i * 0.001] as Position);
-      const req = buildValhallaRequest({ ...sampleRequest, exclusions: manyExclusions });
-      expect(req.exclude_locations?.length).toBeLessThanOrEqual(50);
-    });
-
-    it("includes exclude_locations when provided", () => {
-      const req = buildValhallaRequest({
-        ...sampleRequest,
-        exclusions: [[106.8, -6.2] as Position],
-      });
-      expect(req.exclude_locations).toHaveLength(1);
+      expect(req.costing_options?.bicycle?.use_roads).toBeUndefined();
     });
   });
 
-  describe("normalizeValhallaResponse", () => {
-    it("normalizes a valid response", () => {
-      const raw = {
-        trip: {
-          status: 0,
-          status_message: "Found route",
-          legs: [{
+  describe("exclusions", () => {
+    it("caps exclusions at 50", () => {
+      const many = Array.from({ length: 60 }, (_, i) => [i * 0.001, i * 0.001] as Position);
+      const req = buildValhallaRequest({ ...sampleRequest, exclusions: many });
+      expect(req.exclude_locations?.length).toBe(50);
+    });
+  });
+
+  describe("linear_cost_factors serialization", () => {
+    it("sends the exact {shape, factor} schema with coordinates", () => {
+      const shape: Position[] = [
+        [106.85, -6.18],
+        [106.84, -6.185],
+        [106.83, -6.19],
+      ];
+      const req = buildValhallaRequest({
+        ...sampleRequest,
+        linearCostShape: shape,
+        linearCostFactor: 5,
+        alternateCount: 2,
+      });
+
+      expect(req.linear_cost_factors).toHaveLength(1);
+      const factor = req.linear_cost_factors![0]!;
+      expect(factor.factor).toBe(5);
+      expect(typeof factor.shape).toBe("object");
+      const line = factor.shape as { type: string; coordinates: readonly (readonly number[])[] };
+      expect(line.type).toBe("LineString");
+      expect(line.coordinates).toHaveLength(3);
+      expect(line.coordinates[0]![0]).toBeCloseTo(106.85, 6);
+      expect(line.coordinates[0]![1]).toBeCloseTo(-6.18, 6);
+      expect(req.alternates).toBe(2);
+    });
+
+    it("omits linear_cost_factors without a shape", () => {
+      const req = buildValhallaRequest({ ...sampleRequest, linearCostFactor: 5 });
+      expect(req.linear_cost_factors).toBeUndefined();
+    });
+
+    it("omits linear_cost_factors for degenerate shapes", () => {
+      const req = buildValhallaRequest({
+        ...sampleRequest,
+        linearCostFactor: 5,
+        linearCostShape: [[106.85, -6.18] as Position],
+      });
+      expect(req.linear_cost_factors).toBeUndefined();
+    });
+  });
+
+  describe("elevation interval", () => {
+    it("always sends elevation_interval 30 and kilometer units", () => {
+      const req = buildValhallaRequest(sampleRequest);
+      expect(req.elevation_interval).toBe(30);
+      expect(req.directions_options?.units).toBe("kilometers");
+    });
+  });
+});
+
+describe("Valhalla response normalization", () => {
+  it("normalizes a valid response with distance-mapped elevation", () => {
+    const raw: ValhallaRouteResponse = {
+      trip: {
+        status: 0,
+        status_message: "Found route",
+        legs: [
+          {
             shape: "kz~fA_ehsWb@w@h@c@LY\\E\\EdCcA",
             summary: { length: 12.5, time: 1800 },
-            elevation: [5, 6, 7, 8, 9, 8, 7, 6, 5],
-          }],
-          summary: { length: 12.5, time: 1800 },
+            elevation: [5, 6, 7, 8, 9],
+          },
+        ],
+        summary: { length: 12.5, time: 1800 },
+      },
+    };
+    const result = normalizeValhallaResponse(raw);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.distanceMeters).toBe(12500);
+    expect(result[0]!.durationSeconds).toBe(1800);
+    expect(result[0]!.geometry.length).toBeGreaterThan(1);
+    /* Distance-interval mapping: sample i -> i*30 */
+    expect(result[0]!.elevation[1]!.distanceMeters).toBe(30);
+    expect(result[0]!.elevation[4]!.distanceMeters).toBe(120);
+  });
+
+  it("maps 299 samples over a 8.937 km leg (370 vertices)", () => {
+    const elevation = Array.from({ length: 299 }, (_, i) => 100 + i * 0.5);
+
+    const samples = buildElevationSamples(elevation, 30, 8937);
+    expect(samples).toHaveLength(299);
+    /* Sample count stays 299 — never extended to the 370 geometry vertices */
+    expect(samples[samples.length - 1]!.distanceMeters).toBeLessThanOrEqual(8937);
+    expect(samples[samples.length - 1]!.distanceMeters).toBe(8937);
+  });
+
+  it("rejects an elevation array that cannot map to the leg length", () => {
+    const elevation = Array.from({ length: 1000 }, () => 10);
+    expect(() => buildElevationSamples(elevation, 30, 5000)).toThrow(ValhallaResponseError);
+  });
+
+  it("treats -500 and non-finite values as null", () => {
+    const samples = buildElevationSamples([5, -500, Number.NaN, Number.POSITIVE_INFINITY, 9], 30, 500);
+    expect(samples[0]!.elevationMeters).toBe(5);
+    expect(samples[1]!.elevationMeters).toBeNull();
+    expect(samples[2]!.elevationMeters).toBeNull();
+    expect(samples[3]!.elevationMeters).toBeNull();
+    expect(samples[4]!.elevationMeters).toBe(9);
+  });
+
+  it("throws on missing trip and empty legs", () => {
+    expect(() => normalizeValhallaResponse({})).toThrow(ValhallaResponseError);
+    expect(() =>
+      normalizeValhallaResponse({ trip: { status: 0, status_message: "", legs: [] } }),
+    ).toThrow(ValhallaResponseError);
+  });
+
+  it("throws on invalid distance", () => {
+    expect(() =>
+      normalizeValhallaResponse({
+        trip: {
+          status: 0,
+          legs: [{ shape: "kz~fA_ehsWb@w@h@c@", summary: { length: 0, time: 100 } }],
         },
-      };
-      const result = normalizeValhallaResponse(raw);
+      }),
+    ).toThrow(ValhallaResponseError);
+  });
+
+  describe("primary versus alternate normalization", () => {
+    const rawWithAlternates: ValhallaRouteResponse = {
+      trip: {
+        status: 0,
+        status_message: "Found route with alternatives",
+        legs: [
+          {
+            shape: "kz~fA_ehsWb@w@h@c@",
+            summary: { length: 8.2, time: 1200 },
+          },
+        ],
+        summary: { length: 8.2, time: 1200 },
+        alternates: [
+          {
+            legs: [
+              {
+                shape: "kz~fA_iisWb@o@f@a@",
+                summary: { length: 9.8, time: 1500 },
+              },
+            ],
+            summary: { length: 9.8, time: 1500 },
+          },
+          {
+            legs: [
+              {
+                shape: "kz~fA_iesW`@u@d@c@",
+                summary: { length: 11.0, time: 1650 },
+              },
+            ],
+            summary: { length: 11.0, time: 1650 },
+          },
+        ],
+      },
+    };
+
+    it("normalizes the primary trip only", () => {
+      const result = normalizeValhallaResponse(rawWithAlternates);
       expect(result).toHaveLength(1);
-      expect(result[0]!.distanceMeters).toBe(12500);
-      expect(result[0]!.durationSeconds).toBe(1800);
-      expect(result[0]!.geometry.length).toBeGreaterThan(1);
+      expect(result[0]!.distanceMeters).toBe(8200);
     });
 
-    it("throws on missing trip", () => {
-      expect(() => normalizeValhallaResponse({})).toThrow();
-    });
-
-    it("throws on empty legs", () => {
-      expect(() =>
-        normalizeValhallaResponse({
-          trip: { status: 0, status_message: "", legs: [] },
-        }),
-      ).toThrow();
+    it("normalizes alternates separately", () => {
+      const alternates = normalizeAlternateTrips(rawWithAlternates);
+      expect(alternates).toHaveLength(2);
+      expect(alternates[0]!.distanceMeters).toBe(9800);
+      expect(alternates[1]!.distanceMeters).toBe(11000);
     });
   });
 });

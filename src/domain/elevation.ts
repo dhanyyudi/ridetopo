@@ -83,7 +83,12 @@ export function interpolateGaps(samples: readonly ElevationSample[]): ElevationS
     if (gapEnd === -1) break;
 
     const gapSamples = gapEnd - i;
-    const gapMeters = result[gapEnd]!.distanceMeters - left.distanceMeters;
+    /* Missing-data meters = span minus one sample interval */
+    const stepSize =
+      gapEnd + 1 < result.length
+        ? result[gapEnd + 1]!.distanceMeters - result[gapEnd]!.distanceMeters
+        : result[gapEnd]!.distanceMeters - result[gapEnd - 1]!.distanceMeters;
+    const gapMeters = result[gapEnd]!.distanceMeters - left.distanceMeters - stepSize;
 
     if (gapSamples > maxGapSamples || gapMeters > maxGapMeters) {
       i = gapEnd;

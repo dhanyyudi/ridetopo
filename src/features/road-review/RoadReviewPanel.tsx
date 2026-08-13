@@ -47,8 +47,8 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
   const startCorridor = useCallback(() => {
     if (!selected) return;
     setCorridorMode(true);
-    setCorridorStart(selected.beginShapeIndex);
-    setCorridorEnd(selected.endShapeIndex);
+    setCorridorStart(null);
+    setCorridorEnd(null);
     setReviewError(null);
   }, [selected]);
 
@@ -77,9 +77,10 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
       return;
     }
 
-    const edgeSegments = segments.filter(
-      (s) => s.beginShapeIndex <= bounds.end && s.endShapeIndex >= bounds.start,
-    );
+    const edgeSegments = segments.filter((s) => {
+      const mid = (s.beginShapeIndex + s.endShapeIndex) / 2;
+      return mid >= bounds.start && mid <= bounds.end;
+    });
 
     if (edgeSegments.length === 0) {
       setAvoiding(false);
@@ -93,7 +94,16 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
       return pt ?? route.outbound.geometry[route.outbound.geometry.length - 1]!;
     });
 
-    await controller.addAvoidance(midpoints, edgeSegments.map(getRoadDisplayName).join(", "));
+    const avoidedGeometry: Position[] = route.outbound.geometry.slice(
+      Math.max(0, bounds.start),
+      Math.min(route.outbound.geometry.length, bounds.end + 1),
+    ) as Position[];
+
+    await controller.addAvoidance(
+      midpoints,
+      edgeSegments.map(getRoadDisplayName).join(", "),
+      avoidedGeometry,
+    );
 
     setAvoiding(false);
     setSelectedId(null);
@@ -210,6 +220,12 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
         {reviewError && (
           <p className="inline-error" role="alert">
             {reviewError}
+          </p>
+        )}
+
+        {store.routeError && (
+          <p className="inline-error" role="alert">
+            {store.routeError}
           </p>
         )}
 

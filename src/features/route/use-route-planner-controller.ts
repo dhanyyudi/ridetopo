@@ -298,12 +298,31 @@ export function useRoutePlannerController() {
     }
   }, [providers]);
 
-  /* Avoidance */
+  /* Avoidance — transactional: exclusions commit only with a validated route */
   const addAvoidance = useCallback(
-    async (positions: readonly Position[], label: string): Promise<void> => {
+    async (
+      positions: readonly Position[],
+      label: string,
+      avoidedGeometry: readonly Position[],
+    ): Promise<void> => {
       const state = useRoutePlannerStore.getState();
-      const combined: ExclusionItem[] = [...state.activeExclusions];
+      const previousRoute = state.lastValidRoute;
+      const previousExclusions = state.activeExclusions;
 
+      if (!hasPlannedRef.current || !previousRoute) {
+        const combined: ExclusionItem[] = [...previousExclusions];
+        for (const pos of positions) {
+          const isDuplicate = combined.some(
+            (e) => Math.abs(e.position[0] - pos[0]) < 1e-5 && Math.abs(e.position[1] - pos[1]) < 1e-5,
+          );
+          if (isDuplicate) continue;
+          combined.push({ id: crypto.randomUUID(), position: pos, label });
+        }
+        state.setActiveExclusions(combined.slice(0, PRODUCT_LIMITS.maxExclusionLocations));
+        return;
+      }
+
+      const combined: ExclusionItem[] = [...previousExclusions];
       for (const pos of positions) {
         const isDuplicate = combined.some(
           (e) => Math.abs(e.position[0] - pos[0]) < 1e-5 && Math.abs(e.position[1] - pos[1]) < 1e-5,
@@ -311,32 +330,67 @@ export function useRoutePlannerController() {
         if (isDuplicate) continue;
         combined.push({ id: crypto.randomUUID(), position: pos, label });
       }
+      state.setActiveExclusions(combined.slice(0, PRODUCT_LIMITS.maxExclusionLocations));
 
-      const capped = combined.slice(0, PRODUCT_LIMITS.maxExclusionLocations);
-      state.setActiveExclusions(capped);
+      const built = buildInput();
+      if ("error" in built) {
+        state.setActiveExclusions(previousExclusions);
+        return;
+      }
 
-      if (hasPlannedRef.current && state.lastValidRoute) {
-        const built = buildInput();
-        if (!("error" in built)) {
-          scheduleReroute(built);
-        }
+      await executeRouteRequest(built);
+
+      const after = useRoutePlannerStore.getState();
+      if (after.routeError) {
+        /* Failed reroute: roll back exclusions, keep the old route */
+        after.setActiveExclusions(previousExclusions);
+        return;
+      }
+
+      const newRoute = after.lastValidRoute;
+      if (newRoute && avoidedGeometry.length >= 2) {
+        void import("@/services/avoidance/validate-avoidance").then(({ validateAvoidance }) => {
+          const stillCrossing = !validateAvoidance(avoidedGeometry, newRoute.outbound.geometry, {
+            toleranceMeters: 20,
+            terminalAllowanceMeters: 40,
+          });
+          if (stillCrossing) {
+            const s = useRoutePlannerStore.getState();
+            s.setActiveExclusions(previousExclusions);
+            s.setLastValidRoute(previousRoute);
+            s.setRouteError(COPY.avoidanceFailed);
+            s.setChangesUnapplied(true);
+          }
+        });
       }
     },
-    [buildInput, scheduleReroute],
+    [buildInput, executeRouteRequest],
   );
 
   const removeAvoidance = useCallback(
     (id: string) => {
       const state = useRoutePlannerStore.getState();
-      state.setActiveExclusions(state.activeExclusions.filter((e) => e.id !== id));
-      if (hasPlannedRef.current && state.lastValidRoute) {
-        const built = buildInput();
-        if (!("error" in built)) {
-          scheduleReroute(built);
-        }
+      const previousRoute = state.lastValidRoute;
+      const previousExclusions = state.activeExclusions;
+      state.setActiveExclusions(previousExclusions.filter((e) => e.id !== id));
+
+      if (!hasPlannedRef.current || !previousRoute) return;
+
+      const built = buildInput();
+      if ("error" in built) {
+        state.setActiveExclusions(previousExclusions);
+        return;
       }
+
+      void executeRouteRequest(built).then(() => {
+        const after = useRoutePlannerStore.getState();
+        if (after.routeError) {
+          /* Failed reroute after removal: restore the exclusion list */
+          after.setActiveExclusions(previousExclusions);
+        }
+      });
     },
-    [buildInput, scheduleReroute],
+    [buildInput, executeRouteRequest],
   );
 
   /* Draft */
