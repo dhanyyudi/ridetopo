@@ -14,10 +14,13 @@ jobs:
           node-version-file: ".node-version"
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npm run build:icons
+      - run: npm run browsers:install
       - run: npm run check:public
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-      - run: npm run test:e2e -- --project=chromium
+      - run: npm run verify:build
+      - run: npm run test:e2e
+      - run: npm run audit:security

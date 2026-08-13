@@ -44,6 +44,8 @@ function RestorePrompt({
   onRestore: () => void;
   onDelete: () => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
+
   return (
     <div className="restore-prompt">
       <div className="restore-card" role="dialog" aria-label={COPY.draftPromptTitle}>
@@ -54,10 +56,24 @@ function RestorePrompt({
             <RotateCcw size={16} aria-hidden="true" />
             {COPY.continueDraft}
           </button>
-          <button type="button" className="btn btn-danger" onClick={onDelete}>
-            <Trash2 size={16} aria-hidden="true" />
-            {COPY.deleteDraft}
-          </button>
+          {confirming ? (
+            <>
+              <p className="restore-body" role="alert">
+                {COPY.deleteDraftConfirm}
+              </p>
+              <button type="button" className="btn btn-danger" onClick={onDelete}>
+                {COPY.draftDeleteConfirm}
+              </button>
+              <button type="button" className="btn btn-tertiary" onClick={() => setConfirming(false)}>
+                {COPY.draftKeep}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
+              <Trash2 size={16} aria-hidden="true" />
+              {COPY.deleteDraft}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -81,13 +97,31 @@ function AppInner() {
   }, []);
 
   useEffect(() => {
-    const setOnline = () => useRoutePlannerStore.getState().setOffline(!navigator.onLine);
-    setOnline();
-    window.addEventListener("online", setOnline);
-    window.addEventListener("offline", setOnline);
+    let cancelled = false;
+
+    /* navigator.onLine is unreliable when a service worker serves
+       everything, so probe reachability directly. */
+    const probe = async () => {
+      try {
+        await fetch("/offline-probe.txt", { cache: "no-store", method: "HEAD" });
+        if (!cancelled) useRoutePlannerStore.getState().setOffline(false);
+      } catch {
+        if (!cancelled) useRoutePlannerStore.getState().setOffline(true);
+      }
+    };
+
+    const markOffline = () => useRoutePlannerStore.getState().setOffline(true);
+
+    void probe();
+    window.addEventListener("online", () => void probe());
+    window.addEventListener("offline", markOffline);
+    const interval = window.setInterval(() => void probe(), 30_000);
+
     return () => {
-      window.removeEventListener("online", setOnline);
-      window.removeEventListener("offline", setOnline);
+      cancelled = true;
+      window.removeEventListener("online", () => void probe());
+      window.removeEventListener("offline", markOffline);
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -219,6 +253,7 @@ function AppInner() {
             markers={markers}
             routeGeometry={isReview ? null : routeGeometry}
             fitPadding={isResult ? 120 : 60}
+            offline={store.offline}
           />
         </div>
       </div>

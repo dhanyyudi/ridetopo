@@ -136,6 +136,7 @@ export const COPY = {
 
   /* Offline */
   offlineBanner: "Anda sedang offline. Rute tersimpan tetap dapat diakses.",
+  offlineMapUnavailable: "Peta tidak tersedia saat offline. Ringkasan dan ekspor rute tetap dapat digunakan.",
   offlineSearchDisabled: "Pencarian tidak tersedia saat offline.",
   offlineRouteDisabled: "Perencanaan rute tidak tersedia saat offline.",
   offlineTraceDisabled: "Data jalan tidak tersedia saat offline.",

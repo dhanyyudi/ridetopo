@@ -26,6 +26,7 @@ interface Props {
   fitPadding?: number;
   onRouteClick?: (distanceMeters: number) => void;
   className?: string;
+  offline?: boolean;
 }
 
 const DEFAULT_CENTER: [number, number] = [106.827, -6.175];
@@ -40,6 +41,7 @@ export function MapCanvas({
   fitPadding = 80,
   onRouteClick,
   className,
+  offline = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
@@ -47,8 +49,9 @@ export function MapCanvas({
   const [basemapFailed, setBasemapFailed] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  /* Init map once */
+  /* Init map once — never online-required when offline */
   useEffect(() => {
+    if (offline) return;
     let cancelled = false;
     let map: import("maplibre-gl").Map | null = null;
 
@@ -90,7 +93,7 @@ export function MapCanvas({
       mapRef.current = null;
       setMapLoaded(false);
     };
-  }, [onRouteClick]);
+  }, [onRouteClick, offline]);
 
   /* Markers */
   useEffect(() => {
@@ -190,11 +193,23 @@ export function MapCanvas({
     });
   }, [selectionGeometry, mapLoaded]);
 
+  /* Keep the canvas in sync with container resizes */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      mapRef.current?.resize();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [basemapFailed]);
+
   return (
     <div className={className ? `map-host ${className}` : "map-host"}>
       <div className="map-container" ref={containerRef} />
-      {basemapFailed && <MapFallback message={COPY.errorBasemap} />}
-      {!basemapFailed && (
+      {offline && <MapFallback message={COPY.offlineMapUnavailable} />}
+      {!offline && basemapFailed && <MapFallback message={COPY.errorBasemap} />}
+      {!offline && !basemapFailed && (
         <div className="attribution-line map-attribution" aria-hidden="true">
           {BASEMAP_ATTRIBUTION}
         </div>

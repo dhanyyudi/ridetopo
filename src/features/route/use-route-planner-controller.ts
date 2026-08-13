@@ -274,9 +274,13 @@ export function useRoutePlannerController() {
 
   /* Road review */
   const openRoadReview = useCallback(async (): Promise<void> => {
+    const state = useRoutePlannerStore.getState();
+    if (state.offline) {
+      state.setRoadMetadataError(COPY.offlineTraceDisabled);
+      return;
+    }
     const activeProviders = providers();
     if (!activeProviders) return;
-    const state = useRoutePlannerStore.getState();
     const route = state.lastValidRoute;
     if (!route) return;
 
@@ -541,6 +545,10 @@ export function useRoutePlannerController() {
   return {
     /* Query */
     searchLocation: (query: string, signal: AbortSignal): Promise<readonly GeocodingResult[]> => {
+      const state = useRoutePlannerStore.getState();
+      if (state.offline) {
+        throw new Error(COPY.offlineSearchDisabled);
+      }
       const activeProviders = providers();
       if (!activeProviders) return Promise.resolve([]);
       return activeProviders.geocoding.search(query, signal);

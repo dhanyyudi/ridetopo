@@ -131,6 +131,7 @@
 
 .layout-result .app-map {
   display: block;
+  order: -1;
   flex: 1.2;
   min-height: 220px;
 }
@@ -167,11 +168,13 @@
   position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 .map-container {
   position: absolute;
   inset: 0;
+  overflow: hidden;
 }
 
 .map-attribution {
@@ -212,6 +215,10 @@
   .app-layout {
     flex-direction: row;
     height: calc(100dvh - var(--header-height-wide) - env(safe-area-inset-top));
+  }
+
+  .layout-result .app-map {
+    order: 0;
   }
 
   .app-panel {

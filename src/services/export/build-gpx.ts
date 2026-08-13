@@ -1,4 +1,6 @@
 import type { PlannedRoute, ElevationSample } from "@/domain/route";
+import { interpolateElevationAtDistance } from "@/domain/elevation";
+import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 
 function escapeXml(s: string): string {
   return s
@@ -17,35 +19,42 @@ function safeSlug(s: string): string {
     .slice(0, 50);
 }
 
-export function buildGpx(route: PlannedRoute): string {
+/** Full unsimplified combined geometry with distance-mapped elevation. */
+function buildGpxContent(route: PlannedRoute): string {
   const date = new Date().toISOString().slice(0, 10);
   const originLabel = route.input.locations[0]?.label ?? "asal";
-  const destLabel = route.input.locations[route.input.locations.length - 1]?.label ?? "tujuan";
+  const destLabel =
+    route.input.locations[route.input.locations.length - 1]?.label ?? "tujuan";
   const name = `ridetopo-${safeSlug(originLabel)}-${safeSlug(destLabel)}-${date}`;
 
-  const allGeometry = route.geometry;
-  const allElevation: ElevationSample[] = [
+  const geometry = route.geometry;
+  const elevationProfile: ElevationSample[] = [
     ...route.outbound.elevation,
     ...(route.returnLeg?.elevation ?? []),
   ];
 
+  /* Distance profile over the combined geometry so elevation maps by
+     cumulative distance, never by array index. */
+  const cumulative = cumulativeDistances(geometry);
+
   let trkpts = "";
-  for (let i = 0; i < allGeometry.length; i++) {
-    const pt = allGeometry[i]!;
-    const elev = allElevation[i];
+  for (let i = 0; i < geometry.length; i++) {
+    const pt = geometry[i]!;
+    const distanceAtPoint = cumulative[i] ?? 0;
+    const elevation = interpolateElevationAtDistance(elevationProfile, distanceAtPoint);
     trkpts += `    <trkpt lat="${pt[1]}" lon="${pt[0]}">\n`;
-    if (elev?.elevationMeters != null) {
-      trkpts += `      <ele>${elev.elevationMeters}</ele>\n`;
+    if (elevation !== null) {
+      trkpts += `      <ele>${round5(elevation)}</ele>\n`;
     }
     trkpts += "    </trkpt>\n";
   }
 
   let wpts = "";
   for (const loc of route.input.locations) {
-    const wptLabel =
-      route.input.returnToStart && loc.role === "origin"
-        ? "Mulai/Selesai"
-        : escapeXml(loc.label || "Titik");
+    const isRoundTripOrigin = route.input.returnToStart && loc.role === "origin";
+    const wptLabel = isRoundTripOrigin
+      ? "Mulai/Selesai"
+      : escapeXml(loc.label || "Titik");
     wpts += `  <wpt lat="${loc.position[1]}" lon="${loc.position[0]}">\n`;
     wpts += `    <name>${wptLabel}</name>\n`;
     wpts += "  </wpt>\n";
@@ -65,14 +74,23 @@ ${trkpts}    </trkseg>
 </gpx>`;
 }
 
+function round5(v: number): string {
+  return (Math.round(v * 100) / 100).toFixed(2);
+}
+
+export function buildGpx(route: PlannedRoute): string {
+  return buildGpxContent(route);
+}
+
 export function generateGpxFilename(route: PlannedRoute): string {
   const date = new Date().toISOString().slice(0, 10);
   const originLabel = route.input.locations[0]?.label ?? "asal";
-  const destLabel = route.input.locations[route.input.locations.length - 1]?.label ?? "tujuan";
+  const destLabel =
+    route.input.locations[route.input.locations.length - 1]?.label ?? "tujuan";
   return `ridetopo-${safeSlug(originLabel)}-${safeSlug(destLabel)}-${date}.gpx`;
 }
 
 export function generateGpxBlob(route: PlannedRoute): Blob {
-  const gpx = buildGpx(route);
+  const gpx = buildGpxContent(route);
   return new Blob([gpx], { type: "application/gpx+xml;charset=utf-8" });
 }

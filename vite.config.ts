@@ -7,9 +7,25 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
+      includeAssets: ["brand/*.png", "brand/*.svg", "fonts/*.woff2", "fonts/OFL.txt", "_headers", "_redirects"],
       workbox: {
-        globPatterns: ["**/*.{js,css,html,woff2,png,svg,ico,json}"],
-        runtimeCaching: [],
+        /* Precache only versioned app-shell artifacts. Never precache
+           /config.json, provider responses, or map tiles. */
+        globPatterns: ["**/*.{js,css,html,woff2,png,svg}"],
+        navigateFallback: "/index.html",
+        runtimeCaching: [
+          {
+            /* Runtime config and shell use network-first revalidation so an
+               installed app can still boot offline from the last valid copy. */
+            urlPattern: ({ url }) =>
+              url.pathname === "/config.json" || url.pathname === "/",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "ridetopo-runtime",
+              networkTimeoutSeconds: 5,
+            },
+          },
+        ],
       },
       manifest: {
         name: "RideTopo",
@@ -33,6 +49,6 @@ export default defineConfig({
   build: {
     target: "es2022",
     outDir: "dist",
-    sourcemap: true,
+    sourcemap: false,
   },
 });

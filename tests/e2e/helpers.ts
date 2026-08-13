@@ -181,7 +181,9 @@ export async function fillJourney(page: Page) {
     }
   }
   expect(enabled).toBe(true);
-  await saveButton.click({ force: true });
+  /* Dispatch the click directly — deterministic regardless of viewport
+     position during map/layout settling. */
+  await saveButton.evaluate((el) => (el as HTMLButtonElement).click());
 
   /* The picker must close after save */
   await page.waitForSelector(".map-picker", { state: "detached", timeout: 10_000 });

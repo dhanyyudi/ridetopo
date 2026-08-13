@@ -1,41 +1,39 @@
 import sharp from "sharp";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
-const SIZES = [
-  { name: "apple-touch-icon", size: 180 },
-  { name: "favicon-32x32", size: 32 },
-  { name: "favicon-48x48", size: 48 },
-  { name: "pwa-192x192", size: 192 },
-  { name: "pwa-512x512", size: 512 },
-  { name: "pwa-maskable-512x512", size: 512 },
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const brandDir = resolve(__dirname, "../public/brand");
+const svgMaster = Buffer.from(readFileSync(resolve(brandDir, "logo-mark.svg"), "utf-8"));
+
+const OUTPUTS = [
+  { name: "favicon-32x32.png", size: 32, maskable: false },
+  { name: "favicon-48x48.png", size: 48, maskable: false },
+  { name: "apple-touch-icon.png", size: 180, maskable: false },
+  { name: "pwa-192x192.png", size: 192, maskable: false },
+  { name: "pwa-512x512.png", size: 512, maskable: false },
+  { name: "pwa-maskable-512x512.png", size: 512, maskable: true },
 ];
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="100" fill="#0F766E"/>
-  <path d="M128 320C170 240 200 200 256 200C312 200 352 260 384 240" stroke="white" stroke-width="28" stroke-linecap="round" fill="none"/>
-  <circle cx="128" cy="320" r="32" fill="white"/>
-  <circle cx="384" cy="240" r="32" fill="white"/>
-</svg>`;
+mkdirSync(brandDir, { recursive: true });
 
-const outDir = new URL("../public/brand/", import.meta.url).pathname;
-mkdirSync(outDir, { recursive: true });
+for (const { name, size, maskable } of OUTPUTS) {
+  /* Maskable icons: shrink the art to the 80% safe zone on the teal background */
+  const artSize = maskable ? Math.round(size * 0.8) : size;
+  const pad = Math.round((size - artSize) / 2);
 
-for (const { name, size } of SIZES) {
-  const isMaskable = name.includes("maskable");
-  const padding = isMaskable ? 0.1 : 0;
-  const padded = Math.round(size * (1 - padding * 2));
-
-  await sharp(Buffer.from(svg))
-    .resize(padded, padded)
+  await sharp(svgMaster)
+    .resize(artSize, artSize)
     .extend({
-      top: Math.round(size * padding),
-      bottom: Math.round(size * padding),
-      left: Math.round(size * padding),
-      right: Math.round(size * padding),
-      background: isMaskable ? { r: 15, g: 118, b: 110, alpha: 1 } : { r: 0, g: 0, b: 0, alpha: 0 },
+      top: pad,
+      bottom: pad,
+      left: pad,
+      right: pad,
+      background: { r: 15, g: 118, b: 110, alpha: 1 },
     })
     .png()
-    .toFile(`${outDir}${name}.png`);
+    .toFile(resolve(brandDir, name));
 
-  console.log(`Generated ${name}.png (${size}x${size})`);
+  console.log(`Generated ${name} (${size}x${size}${maskable ? ", maskable" : ""})`);
 }
