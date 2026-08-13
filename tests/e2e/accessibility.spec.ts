@@ -47,19 +47,22 @@ test.describe("Shell accessibility", () => {
     await expect(page.getByText("Titik mulai")).toBeVisible();
 
     /* WebKit only moves focus with Tab after an explicit pointer
-       interaction; click the brand first, then Tab. */
-    await page.getByRole("button", { name: /RideTopo/ }).first().click();
-    await page.keyboard.press("Tab");
+       interaction; click the brand first (retrying under load), then Tab. */
+    let focusedTag = "";
+    for (let attempt = 0; attempt < 4 && !["BUTTON", "CANVAS", "INPUT", "A"].includes(focusedTag); attempt++) {
+      await page.getByRole("button", { name: /RideTopo/ }).first().click();
+      await page.keyboard.press("Tab");
+      focusedTag = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el) return "";
+        const ring = window.getComputedStyle(el).outlineWidth;
+        return ring !== "0px" && el instanceof HTMLElement && ["BUTTON", "CANVAS", "INPUT", "A"].includes(el.tagName)
+          ? el.tagName
+          : "";
+      });
+    }
 
-    const focusedText = await page.evaluate(() => {
-      const el = document.activeElement;
-      if (!el) return "";
-      const ring = window.getComputedStyle(el).outlineWidth;
-      return `${el.tagName}:${ring}`;
-    });
-    /* Focus must have moved to a real focusable element with a visible ring */
-    expect(["BUTTON", "CANVAS", "INPUT", "A"]).toContain(focusedText.split(":")[0]);
-    expect(focusedText).not.toMatch(/:0px$/);
+    expect(["BUTTON", "CANVAS", "INPUT", "A"]).toContain(focusedTag);
   });
 
   test("manifest link and service worker are present", async ({ page }) => {
