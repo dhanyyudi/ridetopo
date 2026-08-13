@@ -100,13 +100,21 @@ function AppInner() {
     let cancelled = false;
 
     /* navigator.onLine is unreliable when a service worker serves
-       everything, so probe reachability directly. */
+       everything, so probe reachability directly with a timeout. */
     const probe = async () => {
+      const probeController = new AbortController();
+      const timer = window.setTimeout(() => probeController.abort(), 4_000);
       try {
-        await fetch("/offline-probe.txt", { cache: "no-store", method: "HEAD" });
+        await fetch("/offline-probe.txt", {
+          cache: "no-store",
+          method: "HEAD",
+          signal: probeController.signal,
+        });
         if (!cancelled) useRoutePlannerStore.getState().setOffline(false);
       } catch {
         if (!cancelled) useRoutePlannerStore.getState().setOffline(true);
+      } finally {
+        window.clearTimeout(timer);
       }
     };
 

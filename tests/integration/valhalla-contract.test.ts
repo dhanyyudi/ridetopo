@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildValhallaRequest } from "../../src/providers/routing/build-valhalla-request";
+import { decodePolyline6 } from "../../src/lib/polyline6";
 import {
   normalizeValhallaResponse,
   normalizeAlternateTrips,
@@ -59,7 +60,7 @@ describe("Valhalla request contract", () => {
   });
 
   describe("linear_cost_factors serialization", () => {
-    it("sends the exact {shape, factor} schema with coordinates", () => {
+    it("sends the exact {shape, factor} schema with the encoded shape string", () => {
       const shape: Position[] = [
         [106.85, -6.18],
         [106.84, -6.185],
@@ -75,12 +76,14 @@ describe("Valhalla request contract", () => {
       expect(req.linear_cost_factors).toHaveLength(1);
       const factor = req.linear_cost_factors![0]!;
       expect(factor.factor).toBe(5);
-      expect(typeof factor.shape).toBe("object");
-      const line = factor.shape as { type: string; coordinates: readonly (readonly number[])[] };
-      expect(line.type).toBe("LineString");
-      expect(line.coordinates).toHaveLength(3);
-      expect(line.coordinates[0]![0]).toBeCloseTo(106.85, 6);
-      expect(line.coordinates[0]![1]).toBeCloseTo(-6.18, 6);
+      /* The live server contract accepts an encoded polyline6 string */
+      expect(typeof factor.shape).toBe("string");
+      expect((factor.shape as string).length).toBeGreaterThan(0);
+      /* The encoded string decodes back to the exact coordinates */
+      const decoded = decodePolyline6(factor.shape as string);
+      expect(decoded).toHaveLength(3);
+      expect(decoded[0]![0]).toBeCloseTo(106.85, 6);
+      expect(decoded[0]![1]).toBeCloseTo(-6.18, 6);
       expect(req.alternates).toBe(2);
     });
 

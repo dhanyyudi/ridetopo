@@ -1,6 +1,7 @@
 import type { ProviderRouteRequest } from "@/providers/contracts";
-import type { ValhallaRouteRequest, ValhallaLinearCostFactor } from "./valhalla-types";
+import type { ValhallaRouteRequest } from "./valhalla-types";
 import { PRODUCT_LIMITS } from "@/domain/route";
+import { encodePolyline6 } from "@/lib/polyline6";
 
 export const SMALL_ROADS_USE_ROADS = 0.25;
 export const FLATTER_USE_HILLS = 0.25;
@@ -47,11 +48,10 @@ export function buildValhallaRequest(input: ProviderRouteRequest): ValhallaRoute
   }
 
   if (input.linearCostFactor && input.linearCostShape && input.linearCostShape.length >= 2) {
-    const shape: ValhallaLinearCostFactor["shape"] = {
-      type: "LineString",
-      coordinates: input.linearCostShape.map((p) => [p[0], p[1]]),
-    };
-    request.linear_cost_factors = [{ shape, factor: input.linearCostFactor }];
+    /* The live Valhalla contract accepts the shape as an encoded polyline6
+       string (LineString objects are rejected with IsString()). */
+    const encoded = encodePolyline6(input.linearCostShape);
+    request.linear_cost_factors = [{ shape: encoded, factor: input.linearCostFactor }];
   }
 
   return request;

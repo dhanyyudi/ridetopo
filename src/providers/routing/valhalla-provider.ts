@@ -117,19 +117,30 @@ export function createValhallaProvider(): RoutingProvider {
 function mapRoadClass(raw: string): RoadSegment["roadClass"] {
   const mapping: Record<string, RoadSegment["roadClass"]> = {
     motorway: "motorway",
+    motorway_link: "motorway",
     trunk: "trunk",
+    trunk_link: "trunk",
     primary: "primary",
+    primary_link: "primary",
     secondary: "secondary",
+    secondary_link: "secondary",
     tertiary: "tertiary",
+    tertiary_link: "tertiary",
     unclassified: "unclassified",
     residential: "residential",
     service: "service",
+    service_other: "service",
+    service_driveway: "service",
+    service_parking_aisle: "service",
+    service_emergency_access: "service",
+    service_alley: "service",
     cycleway: "cycleway",
     footway: "cycleway",
     path: "cycleway",
     living_street: "residential",
     pedestrian: "other",
     track: "other",
+    bridleway: "other",
   };
   return mapping[raw] ?? "other";
 }

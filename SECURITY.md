@@ -1,19 +1,47 @@
-# Security Policy
+# Kebijakan Keamanan
 
-## Reporting a Vulnerability
+## Melaporkan Kerentanan
 
-To report a security vulnerability, please open an issue on the GitHub
-repository and label it with "security". Do not include sensitive
-proof-of-concept details in the public issue - we will provide a
-secure channel for follow-up.
+Untuk melaporkan kerentanan keamanan, buka issue pada repositori
+GitHub dan beri label "security". Jangan menyertakan detail
+proof-of-concept sensitif di issue publik — kami akan menyediakan
+kanal tindak lanjut yang aman.
 
-## Supported Versions
+## Versi yang Didukung
 
-Only the latest commit on the main branch is supported for security
-updates.
+Hanya commit terbaru pada branch main yang didukung untuk pembaruan
+keamanan.
 
-## Public Code
+## Kode Publik
 
-RideTopo is a static client-side application. No secrets, keys, or
-credentials are stored in the repository. Configuration is provided
-via `/config.json` at runtime.
+RideTopo adalah aplikasi klien statis. Tidak ada rahasia, kunci, atau
+kredensial yang disimpan di repositori. Konfigurasi disediakan melalui
+`/config.json` saat runtime.
+
+## Kontrol Keamanan Build
+
+- `npm run check:public` memindai pohon publik untuk jalur privat dan
+  pola kredensial berkeyakinan tinggi.
+- `npm run verify:build` memeriksa artefak build, dimensi ikon, CSP,
+  dan menolak artefak Worker/Function serta source map produksi.
+- `npm run audit:security` menjalankan gate audit dependency
+  (`--audit-level=high` untuk production dan `critical` keseluruhan).
+- Hook pre-commit di `.githooks/pre-commit` memblokir file privat dan
+  kredensial sebelum commit.
+
+## Kebijakan CSP
+
+Header `Content-Security-Policy` produksi:
+
+```
+default-src 'self'; base-uri 'self'; object-src 'none';
+frame-ancestors 'none'; script-src 'self';
+style-src 'self' 'unsafe-inline'; font-src 'self';
+img-src 'self' data: blob: https://tiles.openfreemap.org;
+connect-src 'self' https://valhalla.dhanypedia.it.com
+https://nominatim.openstreetmap.org https://tiles.openfreemap.org;
+worker-src 'self' blob:; manifest-src 'self';
+form-action 'self'; upgrade-insecure-requests
+```
+
+Tidak ada origin wildcard maupun `unsafe-eval`.

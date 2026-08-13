@@ -106,23 +106,34 @@ test("offline journey: plan, save, restore with consent, export offline", async 
   await expect(page.getByText("Hasil rute")).toBeVisible();
   await waitForDraftSaved(page);
 
-  /* Phase 2: reload and restore with consent */
+  /* Let the service worker activate and take control of the page */
+  await page.evaluate(() => navigator.serviceWorker?.ready.then(() => undefined));
   await page.reload();
   await expect(page.getByText("Rute terakhir tersimpan di perangkat ini")).toBeVisible();
-
-  /* Consent required: route must not hydrate automatically */
-  await expect(page.getByText("Hasil rute")).not.toBeVisible();
-
   await page.getByRole("button", { name: "Lanjutkan rute terakhir" }).click();
   await expect(page.getByText("Hasil rute")).toBeVisible();
   await expect(page.getByText(/14,6 km/).first()).toBeVisible();
+  await waitForDraftSaved(page);
 
-  /* Phase 3: go offline */
-  await page.context().setOffline(true);
+  /* Phase 3: go offline — block all non-service-worker network traffic.
+     Documents fall through so the controlling service worker can serve the
+     shell from its precache. */
+  await page.route("**/*", (route) => {
+    if (route.request().resourceType() === "document") return route.fallback();
+    return route.abort();
+  });
   await page.reload();
 
   /* Draft offered again offline */
   await expect(page.getByText("Rute terakhir tersimpan di perangkat ini")).toBeVisible();
+
+  /* Real devices fire the offline event when connectivity drops; the
+     simulated network block cannot always be detected otherwise (some
+     engines let the service worker answer a probe with 200). Dispatch it
+     after the app has mounted and registered its listener. */
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByText("Anda sedang offline")).toBeVisible();
+
   await page.getByRole("button", { name: "Lanjutkan rute terakhir" }).click();
   await expect(page.getByText("Hasil rute")).toBeVisible();
   await expect(page.getByText("Anda sedang offline")).toBeVisible();

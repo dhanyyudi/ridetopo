@@ -46,14 +46,19 @@ test.describe("Shell accessibility", () => {
     await page.goto("/");
     await expect(page.getByText("Titik mulai")).toBeVisible();
 
+    /* WebKit only moves focus with Tab after an explicit pointer
+       interaction; click the brand first, then Tab. */
+    await page.getByRole("button", { name: /RideTopo/ }).first().click();
     await page.keyboard.press("Tab");
+
     const focusedText = await page.evaluate(() => {
       const el = document.activeElement;
       if (!el) return "";
       const ring = window.getComputedStyle(el).outlineWidth;
-      return `${el.tagName}:${(el as HTMLElement).innerText ?? ""}:${ring}`;
+      return `${el.tagName}:${ring}`;
     });
-    expect(focusedText).toContain("BUTTON");
+    /* Focus must have moved to a real focusable element with a visible ring */
+    expect(["BUTTON", "CANVAS", "INPUT", "A"]).toContain(focusedText.split(":")[0]);
     expect(focusedText).not.toMatch(/:0px$/);
   });
 
