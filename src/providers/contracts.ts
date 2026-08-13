@@ -1,7 +1,5 @@
-import type { Position } from "@/domain/geo";
-import type { RouteLocation } from "@/domain/location";
 import type { RouteLeg, RoadSegment, BicycleProfile, RoadPreference, TerrainPreference } from "@/domain/route";
-export type { Position, RouteLocation, RouteLeg, RoadSegment, BicycleProfile, RoadPreference, TerrainPreference };
+import type { Position } from "@/domain/geo";
 
 export interface ProviderRouteRequest {
   locations: readonly Position[];
@@ -24,9 +22,12 @@ export interface GeocodingResult {
 
 export interface RoutingProvider {
   route(input: ProviderRouteRequest, signal: AbortSignal): Promise<readonly RouteLeg[]>;
+  routeCandidates(input: ProviderRouteRequest, signal: AbortSignal): Promise<readonly RouteLeg[]>;
   traceAttributes(encodedShape: string, signal: AbortSignal): Promise<readonly RoadSegment[]>;
 }
 
 export interface GeocodingProvider {
   search(query: string, signal: AbortSignal): Promise<readonly GeocodingResult[]>;
 }
+
+export type { RouteLeg, RoadSegment, BicycleProfile, RoadPreference, TerrainPreference, Position };

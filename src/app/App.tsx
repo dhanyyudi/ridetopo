@@ -1,118 +1,160 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppShell } from "./AppShell";
 import { loadRuntimeConfig } from "@/config/load-runtime-config";
-import type { AppView } from "./app-view";
 import { COPY } from "@/content/id";
+import { useRoutePlannerStore } from "@/store/route-planner-store";
+import { useRoutePlannerController } from "@/features/route/use-route-planner-controller";
 import { RouteComposer } from "@/features/route/RouteComposer";
+import { RouteResultPanel } from "@/features/route/RouteResultPanel";
+import { RoadReviewPanel } from "@/features/road-review/RoadReviewPanel";
+import { LocationSearchDialog } from "@/features/location/LocationSearchDialog";
+import { MapPicker } from "@/features/location/MapPicker";
+import { ImagePreviewDialog } from "@/features/export/ImagePreviewDialog";
+import { MapCanvas, type MapMarker } from "@/features/map/MapCanvas";
+import { createInitialLocations } from "@/domain/location";
+import { Trash2, RotateCcw } from "lucide-react";
 import "@/styles/global.css";
 import "@/styles/components.css";
 import "@/styles/map.css";
+import "@/styles/layout.css";
 
-function PrivacyView({ onBack }: { onBack: () => void }) {
+function PrivacyView() {
   return (
-    <div style={{ padding: "var(--space-6, 1.5rem)", maxWidth: "640px", margin: "0 auto", width: "100%" }}>
-      <button onClick={onBack} className="btn btn-ghost" style={{ marginBottom: "1rem" }}>
-        &larr; Kembali
-      </button>
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginBottom: "1rem" }}>
-        {COPY.privacyTitle}
-      </h2>
-      <p style={{ color: "var(--color-text-secondary)", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
-        {COPY.privacyText}
-      </p>
+    <div className="info-page">
+      <h1 className="info-title">{COPY.privacyTitle}</h1>
+      <p className="info-body">{COPY.privacyText}</p>
     </div>
   );
 }
 
-function AboutView({ onBack }: { onBack: () => void }) {
+function AboutView() {
   return (
-    <div style={{ padding: "var(--space-6, 1.5rem)", maxWidth: "640px", margin: "0 auto", width: "100%" }}>
-      <button onClick={onBack} className="btn btn-ghost" style={{ marginBottom: "1rem" }}>
-        &larr; Kembali
-      </button>
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginBottom: "1rem" }}>
-        {COPY.aboutTitle}
-      </h2>
-      <p style={{ color: "var(--color-text-secondary)", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
-        {COPY.aboutText}
-      </p>
+    <div className="info-page">
+      <h1 className="info-title">{COPY.aboutTitle}</h1>
+      <p className="info-body">{COPY.aboutText}</p>
     </div>
   );
 }
 
-function ComposerView() {
-  return <RouteComposer />;
+function RestorePrompt({
+  onRestore,
+  onDelete,
+}: {
+  onRestore: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="restore-prompt">
+      <div className="restore-card" role="dialog" aria-label={COPY.draftPromptTitle}>
+        <h1 className="restore-title">{COPY.draftPromptTitle}</h1>
+        <p className="restore-body">{COPY.draftPromptBody}</p>
+        <div className="restore-actions">
+          <button type="button" className="btn btn-primary" onClick={onRestore}>
+            <RotateCcw size={16} aria-hidden="true" />
+            {COPY.continueDraft}
+          </button>
+          <button type="button" className="btn btn-danger" onClick={onDelete}>
+            <Trash2 size={16} aria-hidden="true" />
+            {COPY.deleteDraft}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export function App() {
-  const [view, setView] = useState<AppView>("composer");
+function AppInner() {
   const [configReady, setConfigReady] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
-  const [offline, setOffline] = useState(!navigator.onLine);
 
-  useEffect(() => {
-    const handleOnline = () => setOffline(false);
-    const handleOffline = () => setOffline(true);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+  const store = useRoutePlannerStore();
+  const controller = useRoutePlannerController();
 
+  /* Config + offline */
   useEffect(() => {
-    let cancelled = false;
     const controller = new AbortController();
+    void loadRuntimeConfig(controller.signal)
+      .then(() => setConfigReady(true))
+      .catch(() => setConfigError(COPY.errorConfig));
+    return () => controller.abort();
+  }, []);
 
-    loadRuntimeConfig(controller.signal)
-      .then(() => {
-        if (!cancelled) {
-          setConfigReady(true);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === "AbortError")) {
-          setConfigError(err instanceof Error ? err.message : COPY.errorConfig);
-        }
-      });
-
+  useEffect(() => {
+    const setOnline = () => useRoutePlannerStore.getState().setOffline(!navigator.onLine);
+    setOnline();
+    window.addEventListener("online", setOnline);
+    window.addEventListener("offline", setOnline);
     return () => {
-      cancelled = true;
-      controller.abort();
+      window.removeEventListener("online", setOnline);
+      window.removeEventListener("offline", setOnline);
     };
   }, []);
 
-  const handleNavigate = useCallback((v: AppView) => {
-    setView(v);
+  /* Initial A/B slots */
+  useEffect(() => {
+    const state = useRoutePlannerStore.getState();
+    if (state.locations.length === 0) {
+      state.setLocations(createInitialLocations());
+    }
   }, []);
+
+  const navigate = useCallback((view: "composer" | "privacy" | "about") => {
+    const state = useRoutePlannerStore.getState();
+    if (view === "privacy" || view === "about") {
+      state.setAppView(view);
+      return;
+    }
+    state.setAppView("composer");
+  }, []);
+
+  const markers = useMemo((): MapMarker[] => {
+    const route = store.lastValidRoute;
+    if (route) {
+      return route.input.locations.map((loc) => {
+        if (route.input.returnToStart && loc.role === "origin") {
+          return {
+            id: loc.id,
+            position: loc.position,
+            label: "A",
+            kind: "origin-destination" as const,
+          };
+        }
+        return {
+          id: loc.id,
+          position: loc.position,
+          label: loc.role === "origin" ? "A" : loc.role === "destination" ? "B" : String(route.input.locations.filter((l) => l.role === "waypoint").indexOf(loc) + 1),
+          kind: loc.role === "origin" ? ("origin" as const) : loc.role === "destination" ? ("destination" as const) : ("waypoint" as const),
+        };
+      });
+    }
+    return store.locations
+      .filter((l) => l.position !== null)
+      .map((l) => ({
+        id: l.id,
+        position: l.position!,
+        label: l.role === "origin" ? "A" : l.role === "destination" ? "B" : String(store.locations.filter((x) => x.role === "waypoint").indexOf(l) + 1),
+        kind: l.role === "origin" ? ("origin" as const) : l.role === "destination" ? ("destination" as const) : ("waypoint" as const),
+      }));
+  }, [store.locations, store.lastValidRoute]);
+
+  const searchTarget = useMemo(() => {
+    if (!store.searchDialog.targetId) return null;
+    return store.locations.find((l) => l.id === store.searchDialog.targetId) ?? null;
+  }, [store.locations, store.searchDialog.targetId]);
+
+  const mapPickerTarget = useMemo(() => {
+    if (!store.mapPicker.targetId) return null;
+    return store.locations.find((l) => l.id === store.mapPicker.targetId) ?? null;
+  }, [store.locations, store.mapPicker.targetId]);
 
   if (configError) {
     return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100dvh",
-        padding: "2rem",
-        textAlign: "center",
-        gap: "1rem",
-      }}>
-        <h1 style={{
-          fontSize: "1.5rem",
-          fontWeight: 700,
-          color: "var(--color-primary, #0F766E)",
-        }}>
-          {COPY.appName}
-        </h1>
-        <p style={{ color: "var(--color-error, #DC2626)" }}>{configError}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn btn-primary"
-        >
-          Muat ulang
+      <div className="config-error">
+        <h1 className="config-error-title">{COPY.appName}</h1>
+        <p className="inline-error">{configError}</p>
+        <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+          {COPY.reload}
         </button>
       </div>
     );
@@ -120,35 +162,109 @@ export function App() {
 
   if (!configReady) {
     return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100dvh",
-        padding: "2rem",
-        textAlign: "center",
-        gap: "1rem",
-      }}>
-        <div className="loading-spinner" />
-        <p style={{ color: "var(--color-text-secondary)" }}>
-          {COPY.loading}
-        </p>
+      <div className="config-error">
+        <div className="loading-spinner" aria-hidden="true" />
+        <p className="config-error-text">{COPY.loading}</p>
       </div>
     );
   }
 
+  if (store.restorePromptOpen) {
+    return (
+      <AppShell offline={store.offline} onNavigate={navigate} activeView="composer">
+        <RestorePrompt
+          onRestore={() => void controller.restoreDraft()}
+          onDelete={() => void controller.deleteDraft()}
+        />
+      </AppShell>
+    );
+  }
+
+  if (store.appView === "privacy") {
+    return (
+      <AppShell offline={store.offline} onNavigate={navigate} activeView="privacy">
+        <PrivacyView />
+      </AppShell>
+    );
+  }
+
+  if (store.appView === "about") {
+    return (
+      <AppShell offline={store.offline} onNavigate={navigate} activeView="about">
+        <AboutView />
+      </AppShell>
+    );
+  }
+
+  const isResult = store.appView === "result";
+  const isReview = store.appView === "road-review";
+  const routeGeometry = store.lastValidRoute?.geometry ?? null;
+
+  return (
+    <AppShell offline={store.offline} onNavigate={navigate} activeView={store.appView}>
+      <div className={`app-layout ${isResult ? "layout-result" : isReview ? "layout-review" : "layout-composer"}`}>
+        <div className="app-panel">
+          {store.appView === "composer" && <RouteComposer controller={controller} offline={store.offline} />}
+          {isResult && <RouteResultPanel controller={controller} offline={store.offline} />}
+          {isReview && (
+            <RoadReviewPanel
+              controller={controller}
+              onExit={() => store.setAppView("result")}
+            />
+          )}
+        </div>
+
+        <div className="app-map">
+          <MapCanvas
+            markers={markers}
+            routeGeometry={isReview ? null : routeGeometry}
+            fitPadding={isResult ? 120 : 60}
+          />
+        </div>
+      </div>
+
+      <LocationSearchDialog
+        open={store.searchDialog.open}
+        onClose={() => store.setSearchDialog({ open: false, targetId: null })}
+        onSelect={(result) => {
+          if (searchTarget) {
+            controller.applyLocation(searchTarget.id, {
+              position: result.position,
+              label: result.label.split(",")[0] ?? result.label,
+              source: "search",
+            });
+          }
+        }}
+        onSearch={controller.searchLocation}
+        offline={store.offline}
+      />
+
+      <MapPicker
+        open={store.mapPicker.open}
+        initialPosition={mapPickerTarget?.position ?? null}
+        onSave={(position) => {
+          if (mapPickerTarget) {
+            controller.applyMapPosition(mapPickerTarget.id, position);
+          }
+        }}
+        onCancel={() => store.setMapPicker({ open: false, targetId: null })}
+      />
+
+      <ImagePreviewDialog
+        open={store.imagePreview.open}
+        imageUrl={store.imagePreview.url}
+        onClose={controller.closeImagePreview}
+        onShare={() => void controller.shareImage()}
+        onDownload={controller.downloadImage}
+      />
+    </AppShell>
+  );
+}
+
+export function App() {
   return (
     <AppErrorBoundary>
-      <AppShell view={view} onNavigate={handleNavigate} offline={offline}>
-        {view === "privacy" ? (
-          <PrivacyView onBack={() => setView("composer")} />
-        ) : view === "about" ? (
-          <AboutView onBack={() => setView("composer")} />
-        ) : (
-          <ComposerView />
-        )}
-      </AppShell>
+      <AppInner />
     </AppErrorBoundary>
   );
 }

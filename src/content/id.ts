@@ -8,22 +8,34 @@ export const COPY = {
   navRoadReview: "Tinjau ruas jalan",
   navPrivacy: "Privasi",
   navAbout: "Tentang",
+  navBack: "Kembali",
 
   /* Composer */
   startPoint: "Titik mulai",
   destination: "Tujuan",
-  addWaypoint: "Tambah titik antara",
   waypointLabel: "Titik antara",
+  addWaypoint: "Tambah titik",
   maxWaypointReached: "Maksimal 20 titik antara.",
   searchPlaceholder: "Cari lokasi...",
   searchButton: "Cari",
+  searchHint: "Ketik nama lokasi lalu tekan Cari.",
   pickOnMap: "Pilih di peta",
   myLocation: "Lokasi saya",
   locationDenied: "Izin lokasi tidak diberikan. Gunakan pencarian atau pilih di peta.",
+  locationUnavailable: "Lokasi perangkat tidak tersedia di browser ini.",
+  locationTimeout: "Gagal mendapatkan lokasi. Coba lagi.",
   removeWaypoint: "Hapus titik",
   swapDirections: "Tukar arah",
-  planRoute: "Rencanakan rute",
-  noRouteFound: "Tidak ditemukan rute lain yang dapat digunakan.",
+  moveUp: "Pindahkan ke atas",
+  moveDown: "Pindahkan ke bawah",
+  planRoute: "Rencanakan Rute",
+  editRoute: "Ubah rute",
+  mapPickTitle: "Pilih di peta",
+  mapPickHint: "Ketuk peta untuk memilih lokasi.",
+  mapPickSave: "Simpan",
+  mapPickCancel: "Batal",
+  mapPickLabel: "Titik pilihan",
+  incompleteLocations: "Lengkapi titik mulai dan tujuan terlebih dahulu.",
 
   /* Profiles */
   profileLabel: "Jenis sepeda",
@@ -35,16 +47,23 @@ export const COPY = {
   terrainPreference: "Preferensi tanjakan",
   standardTerrain: "Standard",
   flatter: "Lebih Landai",
+  roadPreferenceHelper: "Ini adalah preferensi. Gunakan “Tinjau ruas jalan” untuk menghindari bagian tertentu.",
+  terrainPreferenceHelper: "Ini adalah preferensi. Rute dapat tetap menanjak bila tidak ada jalur yang lebih landai.",
 
   /* Round trip */
   returnToStart: "Kembali ke titik awal",
+  returnToStartShort: "Kembali ke A",
   returnMode: "Rute pulang",
   returnDifferentRoad: "Lewat jalan lain",
   returnFastest: "Pulang tercepat",
-  returnHelper: "Rute pulang akan diupayakan melalui jalan yang berbeda.",
+  returnHelper:
+    "RideTopo mencari jalan pulang yang berbeda jika tersedia. Beberapa ruas mungkin tetap sama.",
   returnFastestHelper: "Rute pulang tercepat tanpa prioritas jalan berbeda.",
+  limitedReturn:
+    "Pilihan jalan pulang alternatif terbatas di area ini. Beberapa ruas tetap digunakan kembali.",
   startAndEnd: "Titik mulai dan selesai",
-  limitedReturn: "Rute pulang melewati beberapa jalan yang sama dengan rute berangkat.",
+  turnaround: "Tujuan / titik putar",
+  findingReturn: "Mencari jalan pulang…",
 
   /* Route result */
   routeDistance: "Jarak",
@@ -54,9 +73,11 @@ export const COPY = {
   elevationLoss: "Elevasi turun",
   elevationUnavailable: "Data elevasi belum tersedia untuk rute ini.",
   roadReview: "Tinjau ruas jalan",
-  exportGpx: "Ekspor GPX",
+  exportGpx: "GPX",
   shareImage: "Bagikan gambar",
   downloadImage: "Unduh PNG",
+  resultTitle: "Hasil rute",
+  unappliedChanges: "Perubahan terakhir belum berhasil diterapkan. Rute sebelumnya tetap tersimpan.",
 
   /* Road review */
   roadReviewTitle: "Tinjau ruas jalan",
@@ -75,20 +96,43 @@ export const COPY = {
   maxExclusionsReached: "Maksimal 50 lokasi hindaran.",
   metadataUnavailable: "Data jalan belum tersedia. Rute tetap dapat dilihat.",
   exitReview: "Selesai tinjau",
+  reviewHint: "Pilih ruas dari daftar atau ketuk rute di peta.",
+  corridorHint: "Pilih batas awal dan akhir area yang ingin dihindari.",
+  corridorStart: "Tandai batas awal",
+  corridorEnd: "Tandai batas akhir",
+
+  /* Road class explanations */
+  roadClassMotorway: "Jalan tol/freeway dengan akses terbatas; umumnya tidak dapat dilalui sepeda.",
+  roadClassTrunk: "Jalan nasional utama non-tol.",
+  roadClassPrimary: "Jalan utama penghubung kota atau kawasan penting.",
+  roadClassSecondary: "Jalan penghubung regional atau antarkawasan.",
+  roadClassTertiary: "Jalan penghubung lokal atau kolektor.",
+  roadClassUnclassified: "Jalan umum kecil yang tetap berfungsi sebagai jalan tembus.",
+  roadClassResidential: "Jalan lingkungan permukiman.",
+  roadClassService: "Jalan akses menuju bangunan, parkir, atau fasilitas.",
+  roadClassCycleway: "Jalur yang ditujukan untuk sepeda.",
+  roadClassOther: "Jalan lainnya.",
+  unnamedFallback: "Ruas tanpa nama — Jalan Lokal — Permukaan tidak diketahui",
 
   /* Export */
   exportTitle: "Ekspor rute",
   gpxDownload: "Unduh GPX",
+  gpxSuccess: "GPX berhasil dibuat.",
   imagePreview: "Pratinjau gambar",
-  shareSheet: "Bagikan",
+  shareSheet: "Bagikan gambar",
   imagePrivacyWarning: "Gambar rute dapat memperlihatkan lokasi awal dan tujuan.",
   imageAttribution: "Route data © OpenStreetMap contributors — openstreetmap.org/copyright",
   planTitle: "Rencana rute",
+  imageTimeLabel: "Estimasi waktu",
 
   /* Draft */
   continueDraft: "Lanjutkan rute terakhir",
   deleteDraft: "Hapus rute",
   deleteDraftConfirm: "Hapus rute yang tersimpan? Tindakan ini tidak dapat dibatalkan.",
+  draftPromptTitle: "Rute terakhir tersimpan di perangkat ini",
+  draftPromptBody: "Muat rute terakhir atau hapus untuk memulai rencana baru.",
+  draftDeleteConfirm: "Hapus rute",
+  draftKeep: "Mulai rute baru",
 
   /* Offline */
   offlineBanner: "Anda sedang offline. Rute tersimpan tetap dapat diakses.",
@@ -99,15 +143,26 @@ export const COPY = {
 
   /* Errors */
   errorGeneric: "Terjadi kesalahan. Silakan coba lagi.",
-  errorConfig: "Gagal memuat konfigurasi.",
+  errorConfig: "Gagal memuat konfigurasi aplikasi.",
   errorRouteTooLong: "Maksimal total rute 500 km.",
   errorRouteFailed: "Gagal merencanakan rute. Silakan coba lagi.",
-  errorNoRoute: "Tidak ditemukan rute yang dapat digunakan.",
+  errorRouteCancelled: "Perhitungan dibatalkan.",
+  errorNoRoute: "Tidak ditemukan rute lain yang dapat digunakan.",
   errorBasemap: "Peta tidak dapat ditampilkan. Rute tetap tersedia.",
   errorExport: "Gagal mengekspor. Silakan coba lagi.",
   errorImageRender: "Gagal membuat gambar. Silakan coba lagi.",
+  errorSearch: "Pencarian gagal. Gunakan pilih di peta atau lokasi saya.",
+  viewPreviousRoute: "Lihat rute sebelumnya",
   loading: "Memuat...",
-  calculating: "Menghitung rute...",
+  calculating: "Menghitung rute…",
+  reload: "Muat ulang",
+  tryAgain: "Coba lagi",
+
+  /* Terrain */
+  terrainClimb: "Menanjak",
+  terrainFlat: "Landai",
+  terrainDescent: "Menurun",
+  elevationChartLabel: "Grafik elevasi rute",
 
   /* Privacy */
   privacyTitle: "Privasi",
@@ -136,11 +191,14 @@ Lisensi: AGPL-3.0`,
   maxDistance: "Maksimal total rute 500 km.",
   maxExclusions: "Maksimal 50 lokasi hindaran.",
 
-  /* Format */
+  /* Units */
   km: "km",
   m: "m",
   hours: "jam",
   minutes: "mnt",
+
+  /* Format helpers */
+  kilometersSuffix: "km",
 } as const;
 
 export function formatDistance(meters: number): string {

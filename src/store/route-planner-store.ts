@@ -1,118 +1,235 @@
 import { create } from "zustand";
-import type { RouteLocation } from "@/domain/location";
-import type { BicycleProfile, RoadPreference, TerrainPreference, ReturnMode, PlannedRoute, RoadSegment } from "@/domain/route";
+import type { EditableRouteLocation } from "@/domain/location";
+import type {
+  BicycleProfile,
+  RoadPreference,
+  TerrainPreference,
+  ReturnMode,
+  PlannedRoute,
+  RoadSegment,
+} from "@/domain/route";
 import type { Position } from "@/domain/geo";
+import type { AppView } from "@/app/app-view";
+
+export interface ExclusionItem {
+  id: string;
+  position: Position;
+  label: string;
+}
+
+export interface SearchDialogState {
+  open: boolean;
+  targetId: string | null;
+}
+
+export interface MapPickerState {
+  open: boolean;
+  targetId: string | null;
+}
+
+export interface ImagePreviewState {
+  open: boolean;
+  url: string | null;
+  filename: string;
+  imageFile: File | null;
+}
 
 export interface RoutePlannerState {
-  /* Form state (not persisted) */
-  locations: RouteLocation[];
+  /* Editable form state (not persisted as a whole) */
+  locations: EditableRouteLocation[];
   profile: BicycleProfile;
   roadPreference: RoadPreference;
   terrainPreference: TerrainPreference;
   returnToStart: boolean;
   returnMode: ReturnMode;
-  activeExclusions: Position[];
+  activeExclusions: ExclusionItem[];
 
-  /* Route state */
+  /* Route result state — independent from form state */
   lastValidRoute: PlannedRoute | null;
   isCalculating: boolean;
   routeError: string | null;
+  changesUnapplied: boolean;
 
   /* Road metadata */
   roadSegments: RoadSegment[] | null;
   roadSegmentsLoading: boolean;
+  roadMetadataError: string | null;
 
-  /* Map */
-  mapPickerOpen: boolean;
-  mapPickerTarget: "origin" | "destination" | null;
+  /* View state */
+  appView: AppView;
+  searchDialog: SearchDialogState;
+  mapPicker: MapPickerState;
+  imagePreview: ImagePreviewState;
+  offline: boolean;
 
   /* Draft */
   draftAvailable: boolean;
+  restorePromptOpen: boolean;
 
-  /* Actions */
-  setLocations: (locations: RouteLocation[]) => void;
-  addLocation: (location: RouteLocation) => void;
+  /* Actions — form */
+  setLocations: (locations: EditableRouteLocation[]) => void;
+  addWaypointBeforeDestination: () => void;
   removeLocation: (id: string) => void;
-  updateLocation: (id: string, updates: Partial<RouteLocation>) => void;
+  updateLocation: (id: string, updates: Partial<EditableRouteLocation>) => void;
+  moveWaypoint: (id: string, direction: -1 | 1) => void;
+  reorderWaypoint: (fromIndex: number, toIndex: number) => void;
   swapDirections: () => void;
   setProfile: (profile: BicycleProfile) => void;
   setRoadPreference: (pref: RoadPreference) => void;
   setTerrainPreference: (pref: TerrainPreference) => void;
   setReturnToStart: (value: boolean) => void;
   setReturnMode: (mode: ReturnMode) => void;
-  setActiveExclusions: (exclusions: Position[]) => void;
-  addExclusion: (position: Position) => void;
-  removeExclusion: (index: number) => void;
+
+  /* Actions — exclusions */
+  setActiveExclusions: (exclusions: ExclusionItem[]) => void;
+
+  /* Actions — route result */
   setLastValidRoute: (route: PlannedRoute | null) => void;
   setIsCalculating: (value: boolean) => void;
   setRouteError: (error: string | null) => void;
+  setChangesUnapplied: (value: boolean) => void;
+
+  /* Actions — road metadata */
   setRoadSegments: (segments: RoadSegment[] | null) => void;
   setRoadSegmentsLoading: (value: boolean) => void;
-  setMapPickerOpen: (open: boolean) => void;
-  setMapPickerTarget: (target: "origin" | "destination" | null) => void;
+  setRoadMetadataError: (error: string | null) => void;
+
+  /* Actions — view state */
+  setAppView: (view: AppView) => void;
+  setSearchDialog: (state: SearchDialogState) => void;
+  setMapPicker: (state: MapPickerState) => void;
+  setImagePreview: (state: ImagePreviewState) => void;
+  setOffline: (value: boolean) => void;
+
+  /* Actions — draft */
   setDraftAvailable: (value: boolean) => void;
-  reset: () => void;
+  setRestorePromptOpen: (value: boolean) => void;
+
+  resetAll: () => void;
 }
 
-const initialState = {
-  locations: [] as RouteLocation[],
+const initialFormState = {
+  locations: [] as EditableRouteLocation[],
   profile: "road-bike" as BicycleProfile,
   roadPreference: "standard" as RoadPreference,
   terrainPreference: "standard" as TerrainPreference,
   returnToStart: false,
   returnMode: "different-road" as ReturnMode,
-  activeExclusions: [] as Position[],
+  activeExclusions: [] as ExclusionItem[],
+};
+
+const initialState = {
+  ...initialFormState,
   lastValidRoute: null as PlannedRoute | null,
   isCalculating: false,
   routeError: null as string | null,
+  changesUnapplied: false,
   roadSegments: null as RoadSegment[] | null,
   roadSegmentsLoading: false,
-  mapPickerOpen: false,
-  mapPickerTarget: null as "origin" | "destination" | null,
+  roadMetadataError: null as string | null,
+  appView: "composer" as AppView,
+  searchDialog: { open: false, targetId: null } as SearchDialogState,
+  mapPicker: { open: false, targetId: null } as MapPickerState,
+  imagePreview: { open: false, url: null, filename: "", imageFile: null } as ImagePreviewState,
+  offline: false,
   draftAvailable: false,
+  restorePromptOpen: false,
 };
 
 export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
   ...initialState,
 
   setLocations: (locations) => set({ locations }),
-  addLocation: (location) =>
-    set((s) => ({ locations: [...s.locations, location] })),
+
+  addWaypointBeforeDestination: () =>
+    set((s) => {
+      const destIndex = s.locations.findIndex((l) => l.role === "destination");
+      const waypoint: EditableRouteLocation = {
+        id: crypto.randomUUID(),
+        role: "waypoint",
+        position: null,
+        label: "",
+        source: null,
+      };
+      const updated = [...s.locations];
+      updated.splice(destIndex < 0 ? updated.length : destIndex, 0, waypoint);
+      return { locations: updated };
+    }),
+
   removeLocation: (id) =>
     set((s) => ({ locations: s.locations.filter((l) => l.id !== id) })),
+
   updateLocation: (id, updates) =>
     set((s) => ({
       locations: s.locations.map((l) => (l.id === id ? { ...l, ...updates } : l)),
     })),
+
+  moveWaypoint: (id, direction) =>
+    set((s) => {
+      const idx = s.locations.findIndex((l) => l.id === id);
+      if (idx < 0) return {};
+      const loc = s.locations[idx]!;
+      if (loc.role !== "waypoint") return {};
+      const targetIdx = idx + direction;
+      if (targetIdx < 1) return {};
+      const target = s.locations[targetIdx];
+      if (!target || target.role === "origin") return {};
+      const updated = [...s.locations];
+      [updated[idx], updated[targetIdx]] = [updated[targetIdx]!, updated[idx]!];
+      return { locations: updated };
+    }),
+
+  reorderWaypoint: (fromIndex, toIndex) =>
+    set((s) => {
+      const updated = [...s.locations];
+      const [moved] = updated.splice(fromIndex, 1);
+      if (!moved) return {};
+      updated.splice(toIndex, 0, moved);
+      return { locations: updated };
+    }),
+
   swapDirections: () =>
     set((s) => {
-      const locs = [...s.locations];
-      if (locs.length >= 2) {
-        [locs[0], locs[locs.length - 1]] = [locs[locs.length - 1]!, locs[0]!];
-        locs[0] = { ...locs[0]!, role: "origin" };
-        locs[locs.length - 1] = { ...locs[locs.length - 1]!, role: "destination" };
-      }
-      return { locations: locs };
+      const origin = s.locations.find((l) => l.role === "origin");
+      const destination = s.locations.find((l) => l.role === "destination");
+      if (!origin || !destination) return {};
+      const updated = s.locations.map((l) => {
+        if (l.role === "origin") return { ...destination, role: "origin" as const };
+        if (l.role === "destination") return { ...origin, role: "destination" as const };
+        return l;
+      });
+      return { locations: updated };
     }),
+
   setProfile: (profile) => set({ profile }),
   setRoadPreference: (roadPreference) => set({ roadPreference }),
   setTerrainPreference: (terrainPreference) => set({ terrainPreference }),
   setReturnToStart: (returnToStart) => set({ returnToStart }),
   setReturnMode: (returnMode) => set({ returnMode }),
   setActiveExclusions: (activeExclusions) => set({ activeExclusions }),
-  addExclusion: (position) =>
-    set((s) => ({ activeExclusions: [...s.activeExclusions, position] })),
-  removeExclusion: (index) =>
-    set((s) => ({
-      activeExclusions: s.activeExclusions.filter((_, i) => i !== index),
-    })),
-  setLastValidRoute: (lastValidRoute) => set({ lastValidRoute, routeError: null }),
+
+  setLastValidRoute: (lastValidRoute) =>
+    set({ lastValidRoute, routeError: null, changesUnapplied: false }),
   setIsCalculating: (isCalculating) => set({ isCalculating }),
   setRouteError: (routeError) => set({ routeError }),
+  setChangesUnapplied: (changesUnapplied) => set({ changesUnapplied }),
+
   setRoadSegments: (roadSegments) => set({ roadSegments }),
   setRoadSegmentsLoading: (roadSegmentsLoading) => set({ roadSegmentsLoading }),
-  setMapPickerOpen: (mapPickerOpen) => set({ mapPickerOpen }),
-  setMapPickerTarget: (mapPickerTarget) => set({ mapPickerTarget }),
+  setRoadMetadataError: (roadMetadataError) => set({ roadMetadataError }),
+
+  setAppView: (appView) => set({ appView }),
+  setSearchDialog: (searchDialog) => set({ searchDialog }),
+  setMapPicker: (mapPicker) => set({ mapPicker }),
+  setImagePreview: (imagePreview) => set({ imagePreview }),
+  setOffline: (offline) => set({ offline }),
+
   setDraftAvailable: (draftAvailable) => set({ draftAvailable }),
-  reset: () => set({ ...initialState }),
+  setRestorePromptOpen: (restorePromptOpen) => set({ restorePromptOpen }),
+
+  resetAll: () =>
+    set({
+      ...initialState,
+      locations: [],
+    }),
 }));

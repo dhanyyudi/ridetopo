@@ -1,45 +1,97 @@
+import { useMemo } from "react";
 import { COPY } from "@/content/id";
+import { useRoutePlannerStore } from "@/store/route-planner-store";
+import type { useRoutePlannerController } from "./use-route-planner-controller";
+import { analyzeElevation } from "@/domain/elevation";
+import { ElevationChart } from "@/features/elevation/ElevationChart";
+import { ElevationSummary } from "@/features/elevation/ElevationSummary";
 import { RouteSummary } from "./RouteSummary";
-import type { PlannedRoute } from "@/domain/route";
+import { Pencil, Download, Image as ImageIcon, Map as MapIcon } from "lucide-react";
 
 interface Props {
-  route: PlannedRoute;
-  onReviewRoad: () => void;
-  onBack: () => void;
+  controller: ReturnType<typeof useRoutePlannerController>;
+  offline: boolean;
 }
 
-export function RouteResultPanel({ route, onReviewRoad, onBack }: Props) {
-  const isRoundTrip = route.input.returnToStart;
+export function RouteResultPanel({ controller, offline }: Props) {
+  const store = useRoutePlannerStore();
+  const route = store.lastValidRoute;
+
+  const elevation = useMemo(() => {
+    if (!route) return null;
+    const samples = [...route.outbound.elevation, ...(route.returnLeg?.elevation ?? [])];
+    return analyzeElevation(samples, route.metrics.distanceMeters);
+  }, [route]);
+
+  if (!route) return null;
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "var(--space-4)",
-      padding: "var(--space-4)",
-      maxWidth: "480px",
-      margin: "0 auto",
-      width: "100%",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <button onClick={onBack} className="btn btn-ghost">
-          &larr; Ubah rute
-        </button>
-        <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>
-          {isRoundTrip ? COPY.returnToStart : `${route.input.locations[0]?.label ?? "A"} → ${route.input.locations[route.input.locations.length - 1]?.label ?? "B"}`}
-        </h2>
-      </div>
+    <div className="result-panel">
+      <div className="result-scroll">
+        <div className="result-header">
+          <h1 className="result-title">{COPY.resultTitle}</h1>
+          <button
+            type="button"
+            className="btn btn-tertiary"
+            onClick={() => store.setAppView("composer")}
+            aria-label={COPY.editRoute}
+          >
+            <Pencil size={16} aria-hidden="true" />
+            {COPY.editRoute}
+          </button>
+        </div>
 
-      <RouteSummary
-        metrics={route.metrics}
-        roundTrip={isRoundTrip}
-        limitedReturn={route.limitedReturnAlternatives}
-      />
+        <RouteSummary
+          metrics={route.metrics}
+          roundTrip={route.input.returnToStart}
+          limitedReturn={route.limitedReturnAlternatives}
+        />
 
-      <div style={{ display: "flex", gap: "var(--space-2)" }}>
-        <button onClick={onReviewRoad} className="btn btn-primary" style={{ flex: 1 }}>
-          {COPY.roadReview}
-        </button>
+        {route.input.returnToStart && (
+          <p className="result-roundtrip-status" role="status">
+            {route.limitedReturnAlternatives ? COPY.limitedReturn : COPY.returnHelper}
+          </p>
+        )}
+
+        {elevation && (
+          <section className="result-section" aria-labelledby="elevation-heading">
+            <h2 id="elevation-heading" className="section-title">
+              {COPY.elevationGain}
+            </h2>
+            <ElevationSummary elevation={elevation} />
+            <div className="chart-host">
+              <ElevationChart samples={elevation.samples} terrain={elevation.terrain} height={190} />
+            </div>
+          </section>
+        )}
+
+        <section className="result-section">
+          <button
+            type="button"
+            className="btn btn-secondary wide"
+            onClick={() => void controller.openRoadReview()}
+            disabled={offline}
+          >
+            <MapIcon size={18} aria-hidden="true" />
+            {COPY.roadReview}
+          </button>
+        </section>
+
+        <section className="result-section" aria-labelledby="export-heading">
+          <h2 id="export-heading" className="section-title">
+            {COPY.exportTitle}
+          </h2>
+          <div className="export-actions">
+            <button type="button" className="btn btn-secondary" onClick={controller.exportGpx}>
+              <Download size={16} aria-hidden="true" />
+              {COPY.gpxDownload}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void controller.prepareImage()}>
+              <ImageIcon size={16} aria-hidden="true" />
+              {COPY.shareImage}
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );

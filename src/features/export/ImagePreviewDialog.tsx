@@ -1,9 +1,10 @@
+import { createPortal } from "react-dom";
 import { COPY } from "@/content/id";
+import { X, Share2, Download } from "lucide-react";
 
 interface Props {
   open: boolean;
   imageUrl: string | null;
-  imageFilename: string;
   onClose: () => void;
   onShare: () => void;
   onDownload: () => void;
@@ -12,46 +13,50 @@ interface Props {
 export function ImagePreviewDialog({ open, imageUrl, onClose, onShare, onDownload }: Props) {
   if (!open) return null;
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "var(--space-4)",
-      }}
-      onClick={onClose}
-    >
+  return createPortal(
+    <div className="image-preview-backdrop" role="presentation" onClick={onClose}>
       <div
-        style={{ maxWidth: "360px", width: "100%", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+        className="image-preview-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={COPY.imagePreview}
         onClick={(e) => e.stopPropagation()}
       >
-        <p style={{ color: "white", fontSize: "var(--text-sm)", textAlign: "center" }}>
-          {COPY.imagePrivacyWarning}
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <p className="image-preview-warning">{COPY.imagePrivacyWarning}</p>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ color: "var(--color-surface-raised)" }}
+            onClick={onClose}
+            aria-label="Tutup"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
 
         {imageUrl && (
-          <img
-            src={imageUrl}
-            alt="Pratinjau rute"
-            style={{ width: "100%", borderRadius: "var(--radius-lg)" }}
-          />
+          <img src={imageUrl} alt="Pratinjau gambar rute" className="image-preview-img" />
         )}
 
-        <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "center" }}>
-          <button onClick={onShare} className="btn btn-primary">
+        <div className="image-preview-actions">
+          <button type="button" className="btn btn-primary" onClick={onShare}>
+            <Share2 size={16} aria-hidden="true" />
             {COPY.shareSheet}
           </button>
-          <button onClick={onDownload} className="btn btn-secondary">
+          <button type="button" className="btn btn-secondary" onClick={onDownload}>
+            <Download size={16} aria-hidden="true" />
             {COPY.downloadImage}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,6 +1,9 @@
 import type { ProviderRouteRequest } from "@/providers/contracts";
-import type { ValhallaRouteRequest } from "./valhalla-types";
+import type { ValhallaRouteRequest, ValhallaLinearCostFactor } from "./valhalla-types";
 import { PRODUCT_LIMITS } from "@/domain/route";
+
+export const SMALL_ROADS_USE_ROADS = 0.25;
+export const FLATTER_USE_HILLS = 0.25;
 
 export function buildValhallaRequest(input: ProviderRouteRequest): ValhallaRouteRequest {
   const locations = input.locations.map((pos) => ({
@@ -11,16 +14,15 @@ export function buildValhallaRequest(input: ProviderRouteRequest): ValhallaRoute
   const costingOptions: Record<string, Record<string, unknown>> = {
     bicycle: {
       bicycle_type: input.profile === "road-bike" ? "road" : "hybrid",
-      maneuver_penalty: 30,
     },
   };
 
   if (input.roadPreference === "small-roads") {
-    costingOptions.bicycle!.use_roads = 0.25;
+    costingOptions.bicycle!.use_roads = SMALL_ROADS_USE_ROADS;
   }
 
   if (input.terrainPreference === "flatter") {
-    costingOptions.bicycle!.use_hills = 0.25;
+    costingOptions.bicycle!.use_hills = FLATTER_USE_HILLS;
   }
 
   const cappedExclusions = input.exclusions.slice(0, PRODUCT_LIMITS.maxExclusionLocations);
@@ -44,10 +46,12 @@ export function buildValhallaRequest(input: ProviderRouteRequest): ValhallaRoute
     request.alternates = input.alternateCount;
   }
 
-  if (input.linearCostFactor && input.linearCostShape?.length) {
-    const factor = input.linearCostFactor;
-    const shapeLen = input.linearCostShape.length;
-    request.linear_cost_factors = new Array(shapeLen).fill(factor) as number[];
+  if (input.linearCostFactor && input.linearCostShape && input.linearCostShape.length >= 2) {
+    const shape: ValhallaLinearCostFactor["shape"] = {
+      type: "LineString",
+      coordinates: input.linearCostShape.map((p) => [p[0], p[1]]),
+    };
+    request.linear_cost_factors = [{ shape, factor: input.linearCostFactor }];
   }
 
   return request;

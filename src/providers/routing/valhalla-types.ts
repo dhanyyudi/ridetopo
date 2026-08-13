@@ -9,7 +9,15 @@ export interface ValhallaCostingOptions {
   bicycle_type?: string;
   use_roads?: number;
   use_hills?: number;
-  maneuver_penalty?: number;
+}
+
+export type ValhallaLinearCostShape =
+  | string
+  | { type: "LineString"; coordinates: readonly (readonly [number, number])[] };
+
+export interface ValhallaLinearCostFactor {
+  shape: ValhallaLinearCostShape;
+  factor: number;
 }
 
 export interface ValhallaRouteRequest {
@@ -22,24 +30,7 @@ export interface ValhallaRouteRequest {
   elevation_interval?: number;
   exclude_locations?: ValhallaLocation[];
   alternates?: number;
-  linear_cost_factors?: number[];
-}
-
-export interface ValhallaRouteResponse {
-  trip?: {
-    status_message?: string;
-    status?: number;
-    legs?: ValhallaLeg[];
-    summary?: ValhallaSummary;
-  };
-  error?: string;
-}
-
-export interface ValhallaLeg {
-  shape?: string;
-  summary?: ValhallaSummary;
-  elevation?: (number | null)[];
-  elevation_interval?: number;
+  linear_cost_factors?: readonly ValhallaLinearCostFactor[];
 }
 
 export interface ValhallaSummary {
@@ -49,6 +40,28 @@ export interface ValhallaSummary {
   max_lat?: number;
   min_lon?: number;
   max_lon?: number;
+}
+
+export interface ValhallaLeg {
+  shape?: string;
+  summary?: ValhallaSummary;
+  elevation?: (number | null)[];
+  elevation_interval?: number;
+}
+
+export interface ValhallaTrip {
+  status?: number;
+  status_message?: string;
+  units?: string;
+  language?: string;
+  legs?: ValhallaLeg[];
+  summary?: ValhallaSummary;
+  alternates?: ValhallaTrip[];
+}
+
+export interface ValhallaRouteResponse {
+  trip?: ValhallaTrip;
+  error?: string;
 }
 
 export interface ValhallaTraceRequest {

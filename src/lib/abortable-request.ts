@@ -4,6 +4,13 @@ export interface AbortableRequestResult<T> {
   error: string | null;
 }
 
+export function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 export async function abortableFetch<T>(
   url: string,
   init: RequestInit,
@@ -17,13 +24,13 @@ export async function abortableFetch<T>(
     const data = (await response.json()) as T;
     return { ok: true, data, error: null };
   } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return { ok: false, data: null, error: "aborted" };
+    if (isAbortError(err)) {
+      throw new DOMException("Request dibatalkan.", "AbortError");
     }
     return {
       ok: false,
       data: null,
-      error: err instanceof Error ? err.message : "Network error",
+      error: "Network error",
     };
   }
 }

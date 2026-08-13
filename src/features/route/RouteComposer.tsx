@@ -3,138 +3,198 @@ import { COPY } from "@/content/id";
 import { useRoutePlannerStore } from "@/store/route-planner-store";
 import { WaypointList } from "@/features/location/WaypointList";
 import { RoundTripControl } from "./RoundTripControl";
-import { RouteResultPanel } from "./RouteResultPanel";
-import { createLocationId, type RouteLocation } from "@/domain/location";
-import type { Position } from "@/domain/geo";
-import { PRODUCT_LIMITS } from "@/domain/route";
+import type { EditableRouteLocation } from "@/domain/location";
+import type { useRoutePlannerController } from "./use-route-planner-controller";
+import { Navigation } from "lucide-react";
 
-export function RouteComposer() {
+interface Props {
+  controller: ReturnType<typeof useRoutePlannerController>;
+  offline: boolean;
+}
+
+export function RouteComposer({ controller, offline }: Props) {
   const store = useRoutePlannerStore();
 
-  const handleAddWaypoint = useCallback(() => {
-    const wpCount = store.locations.filter((l) => l.role === "waypoint").length;
-    if (wpCount >= PRODUCT_LIMITS.maxIntermediateWaypoints) return;
-
-    const insertAt = store.locations.length > 0 ? store.locations.length - 1 : 0;
-    const newLoc: RouteLocation = {
-      id: createLocationId(),
-      role: "waypoint",
-      position: [0, 0] as Position,
-      label: "",
-      source: "search",
-    };
-    const updated = [...store.locations];
-    updated.splice(insertAt, 0, newLoc);
-    store.setLocations(updated);
-  }, [store]);
-
-  const handleRemoveLocation = useCallback(
-    (id: string) => {
-      if (store.locations.length <= 2 && !store.locations.find((l) => l.id === id)?.role.includes("waypoint")) return;
-      store.removeLocation(id);
+  const handleOpenSearch = useCallback(
+    (loc: EditableRouteLocation) => {
+      store.setSearchDialog({ open: true, targetId: loc.id });
     },
     [store],
   );
 
-  const handleOpenSearch = useCallback((_loc: RouteLocation) => {
-    // TODO: implement search dialog
-  }, []);
+  const handleOpenMapPicker = useCallback(
+    (loc: EditableRouteLocation) => {
+      store.setMapPicker({ open: true, targetId: loc.id });
+    },
+    [store],
+  );
 
-  const handleOpenMapPicker = useCallback((_loc: RouteLocation) => {
-    // TODO: implement map picker
-  }, []);
+  const handleUseGeolocation = useCallback(
+    (loc: EditableRouteLocation) => {
+      controller.useGeolocation(loc.id);
+    },
+    [controller],
+  );
 
-  const handleUseGeolocation = useCallback((_loc: RouteLocation) => {
-    // TODO: implement geolocation
-  }, []);
+  const handleReorder = useCallback(
+    (fromId: string, toId: string) => {
+      const locations = useRoutePlannerStore.getState().locations;
+      const fromIdx = locations.findIndex((l) => l.id === fromId);
+      const toIdx = locations.findIndex((l) => l.id === toId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      useRoutePlannerStore.getState().reorderWaypoint(fromIdx, toIdx);
+    },
+    [],
+  );
 
-  if (store.lastValidRoute && !store.routeError) {
-    return (
-      <RouteResultPanel
-        route={store.lastValidRoute}
-        onReviewRoad={() => {}}
-        onBack={() => store.setLastValidRoute(null)}
-      />
-    );
-  }
+  const hasValidRoute = store.lastValidRoute !== null;
+  const canPlan = store.locations.length >= 2 && !offline;
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "var(--space-4)",
-      padding: "var(--space-4)",
-      maxWidth: "480px",
-      margin: "0 auto",
-      width: "100%",
-    }}>
-      <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>
-        {COPY.navComposer}
-      </h2>
+    <div className="composer">
+      <div className="composer-scroll">
+        <h1 className="composer-title">{COPY.navComposer}</h1>
+        <p className="composer-subtitle">{COPY.appTagline}</p>
 
-      <WaypointList
-        locations={store.locations}
-        onAddWaypoint={handleAddWaypoint}
-        onRemoveLocation={handleRemoveLocation}
-        onOpenSearch={handleOpenSearch}
-        onOpenMapPicker={handleOpenMapPicker}
-        onUseGeolocation={handleUseGeolocation}
-        onSwap={store.swapDirections}
-      />
+        <WaypointList
+          locations={store.locations}
+          onAddWaypoint={controller.addWaypoint}
+          onRemoveLocation={controller.removeLocation}
+          onOpenSearch={handleOpenSearch}
+          onOpenMapPicker={handleOpenMapPicker}
+          onUseGeolocation={handleUseGeolocation}
+          onMoveWaypoint={controller.moveWaypoint}
+          onSwap={controller.swapDirections}
+          onReorder={handleReorder}
+        />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
-        <div>
-          <label className="field-label">{COPY.profileLabel}</label>
-          <select
-            value={store.profile}
-            onChange={(e) => store.setProfile(e.target.value as typeof store.profile)}
-            className="text-input"
-          >
-            <option value="road-bike">{COPY.roadBike}</option>
-            <option value="commuter-bike">{COPY.commuterBike}</option>
-          </select>
-        </div>
-        <div>
-          <label className="field-label">{COPY.roadPreference}</label>
-          <select
-            value={store.roadPreference}
-            onChange={(e) => store.setRoadPreference(e.target.value as typeof store.roadPreference)}
-            className="text-input"
-          >
-            <option value="standard">{COPY.standardRoad}</option>
-            <option value="small-roads">{COPY.smallRoads}</option>
-          </select>
-        </div>
+        <RoundTripControl
+          enabled={store.returnToStart}
+          mode={store.returnMode}
+          onToggle={(v) => controller.setPreference({ returnToStart: v })}
+          onModeChange={(m) => controller.setPreference({ returnMode: m })}
+        />
+
+        <section className="composer-section" aria-labelledby="profile-heading">
+          <h2 id="profile-heading" className="section-title">
+            {COPY.profileLabel}
+          </h2>
+          <div className="segmented" role="radiogroup" aria-label={COPY.profileLabel}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.profile === "road-bike"}
+              className={store.profile === "road-bike" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ profile: "road-bike" })}
+            >
+              {COPY.roadBike}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.profile === "commuter-bike"}
+              className={store.profile === "commuter-bike" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ profile: "commuter-bike" })}
+            >
+              {COPY.commuterBike}
+            </button>
+          </div>
+        </section>
+
+        <section className="composer-section" aria-labelledby="road-pref-heading">
+          <h2 id="road-pref-heading" className="section-title">
+            {COPY.roadPreference}
+          </h2>
+          <div className="segmented" role="radiogroup" aria-label={COPY.roadPreference}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.roadPreference === "standard"}
+              className={store.roadPreference === "standard" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ roadPreference: "standard" })}
+            >
+              {COPY.standardRoad}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.roadPreference === "small-roads"}
+              className={store.roadPreference === "small-roads" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ roadPreference: "small-roads" })}
+            >
+              {COPY.smallRoads}
+            </button>
+          </div>
+          <p className="section-helper">{COPY.roadPreferenceHelper}</p>
+        </section>
+
+        <section className="composer-section" aria-labelledby="terrain-pref-heading">
+          <h2 id="terrain-pref-heading" className="section-title">
+            {COPY.terrainPreference}
+          </h2>
+          <div className="segmented" role="radiogroup" aria-label={COPY.terrainPreference}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.terrainPreference === "standard"}
+              className={store.terrainPreference === "standard" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ terrainPreference: "standard" })}
+            >
+              {COPY.standardTerrain}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={store.terrainPreference === "flatter"}
+              className={store.terrainPreference === "flatter" ? "segmented-item active" : "segmented-item"}
+              onClick={() => controller.setPreference({ terrainPreference: "flatter" })}
+            >
+              {COPY.flatter}
+            </button>
+          </div>
+          <p className="section-helper">{COPY.terrainPreferenceHelper}</p>
+        </section>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
-        <div>
-          <label className="field-label">{COPY.terrainPreference}</label>
-          <select
-            value={store.terrainPreference}
-            onChange={(e) => store.setTerrainPreference(e.target.value as typeof store.terrainPreference)}
-            className="text-input"
+      <div className="composer-footer">
+        {store.routeError && (
+          <p className="inline-error" role="alert">
+            {store.routeError}
+          </p>
+        )}
+        {store.changesUnapplied && !store.routeError && (
+          <p className="inline-hint" role="status">
+            {COPY.unappliedChanges}
+          </p>
+        )}
+        {hasValidRoute && store.routeError && (
+          <button
+            type="button"
+            className="btn btn-tertiary"
+            onClick={() => store.setAppView("result")}
           >
-            <option value="standard">{COPY.standardTerrain}</option>
-            <option value="flatter">{COPY.flatter}</option>
-          </select>
-        </div>
+            {COPY.viewPreviousRoute}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn-primary composer-cta"
+          onClick={() => void controller.planExplicitly()}
+          disabled={!canPlan || store.isCalculating}
+        >
+          {store.isCalculating ? (
+            <>
+              <span className="loading-spinner small" aria-hidden="true" />
+              {COPY.calculating}
+            </>
+          ) : (
+            <>
+              <Navigation size={18} aria-hidden="true" />
+              {hasValidRoute ? COPY.planRoute : COPY.planRoute}
+            </>
+          )}
+        </button>
       </div>
-
-      <RoundTripControl
-        enabled={store.returnToStart}
-        mode={store.returnMode}
-        onToggle={store.setReturnToStart}
-        onModeChange={store.setReturnMode}
-      />
-
-      <button
-        className="btn btn-primary"
-        style={{ width: "100%" }}
-        disabled={store.isCalculating || store.locations.length < 2}
-      >
-        {store.isCalculating ? COPY.calculating : COPY.planRoute}
-      </button>
     </div>
   );
 }

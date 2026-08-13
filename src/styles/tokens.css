@@ -1,73 +1,81 @@
 :root {
-  /* Colors - Teal Terrain palette */
-  --color-primary: #0F766E;
-  --color-primary-light: #CCFBF1;
-  --color-primary-dark: #115E59;
-  --color-surface: #F7FAF9;
-  --color-surface-alt: #EDF4F2;
+  /* Brand */
+  --color-brand-primary: #0F766E;
+  --color-brand-soft: #DDF3EE;
+  --color-brand-dark: #115E59;
+
+  /* Text */
+  --color-ink: #14201E;
   --color-text-primary: #14201E;
-  --color-text-secondary: #5E6F6D;
-  --color-text-tertiary: #8B9E9B;
-  --color-white: #FFFFFF;
-  --color-border: #DDE8E5;
-  --color-border-light: #EDF4F2;
+  --color-text-muted: #65736F;
+  --color-text-tertiary: #64726E;
 
-  /* Terrain semantics */
-  --color-climb: #EA580C;
-  --color-climb-light: #FFF7ED;
-  --color-flat: #0F766E;
-  --color-descent: #2563EB;
-  --color-descent-light: #EFF6FF;
+  /* Surfaces */
+  --color-surface: #F7FAF9;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #D8E2DF;
+  --color-border-light: #E8EFEA;
+  --color-map-tint: #E8EFEA;
+  --color-focus: #2DD4BF;
 
-  /* Feedback */
-  --color-error: #DC2626;
+  /* Terrain */
+  --color-terrain-climb: #D97706;
+  --color-terrain-climb-light: #FFF7ED;
+  --color-terrain-flat: #0F766E;
+  --color-terrain-descent: #2563EB;
+  --color-terrain-descent-light: #EFF6FF;
+  --color-road-selection: #C2410C;
+
+  /* Status */
+  --color-error: #B42318;
   --color-error-light: #FEF2F2;
+  --color-success: #067647;
+  --color-success-light: #ECFDF5;
+  --color-info: #175CD3;
   --color-warning: #D97706;
   --color-warning-light: #FFFBEB;
-  --color-success: #059669;
-  --color-success-light: #ECFDF5;
 
-  /* Spacing (4px base) */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
 
   /* Radii */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-full: 9999px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-control: 14px;
+  --radius-panel: 16px;
+  --radius-sheet: 24px;
+  --radius-pill: 999px;
 
   /* Typography */
-  --font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Cascadia Code", monospace;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
-  --leading-tight: 1.25;
-  --leading-normal: 1.5;
+  --font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --type-display: 28px/34px;
+  --type-h1: 24px/30px;
+  --type-h2: 20px/26px;
+  --type-h3: 17px/24px;
+  --type-body: 16px/24px;
+  --type-body-small: 14px/20px;
+  --type-label: 12px/16px;
+  --type-caption: 11px/16px;
+  --type-metric: 24px/28px;
+  --type-metric-small: 16px/22px;
 
-  /* Shadows (minimal) */
-  --shadow-sm: 0 1px 2px rgba(20, 32, 30, 0.06);
-  --shadow-md: 0 2px 8px rgba(20, 32, 30, 0.08);
-  --shadow-lg: 0 4px 16px rgba(20, 32, 30, 0.1);
+  /* Shadows (minimal, only for elevated surfaces) */
+  --shadow-sheet: 0 -8px 24px rgba(20, 32, 30, 0.09);
+  --shadow-menu: 0 8px 24px rgba(20, 32, 30, 0.12);
 
   /* Motion */
-  --transition-fast: 150ms ease;
-  --transition-normal: 250ms ease;
-  --transition-slow: 350ms ease;
+  --motion-fast: 120ms ease-out;
+  --motion-normal: 200ms ease-out;
+  --motion-sheet: 280ms ease-out;
 
   /* Layout */
   --header-height-compact: 56px;

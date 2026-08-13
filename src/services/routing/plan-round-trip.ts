@@ -1,151 +1,176 @@
-import type { RoutePlanInput, RouteLeg } from "@/domain/route";
+import type { RoutePlanInput, RouteLeg, ElevationSample } from "@/domain/route";
 import type { RoutingProvider, ProviderRouteRequest } from "@/providers/contracts";
 import { ROUND_TRIP_CONFIG, ELEVATION_CONFIG, PRODUCT_LIMITS } from "@/domain/route";
-import { scoreReturnCandidate } from "./calculate-overlap";
 import type { Position } from "@/domain/geo";
 import { reverseGeometry } from "@/lib/polyline6";
+import { isAbortError } from "@/lib/abortable-request";
+import {
+  trimGeometryTerminals,
+  scoreReturnCandidates,
+} from "./calculate-overlap";
 
-export async function planRoundTrip(
-  input: RoutePlanInput,
-  outbound: RouteLeg,
-  provider: RoutingProvider,
-  signal: AbortSignal,
-): Promise<{ returnLeg: RouteLeg; repeatedRoadRatio: number; limited: boolean }> {
-  const positions = input.locations.map((loc) => loc.position);
-  const origin = positions[0]!;
-  const turnaround = positions[positions.length - 1]!;
+export interface RoundTripResult {
+  returnLeg: RouteLeg;
+  repeatedRoadRatio: number;
+  limited: boolean;
+}
 
-  if (input.returnMode === "fastest") {
-    const request: ProviderRouteRequest = {
-      locations: [turnaround, origin],
-      profile: input.profile,
-      roadPreference: input.roadPreference,
-      terrainPreference: input.terrainPreference,
-      exclusions: input.exclusions,
-      elevationIntervalMeters: ELEVATION_CONFIG.intervalMeters as 30,
-    };
-
-    const result = await provider.route(request, signal);
-    const returnLeg = result[0]!;
-    const overlap = import("./calculate-overlap").then(m =>
-      m.calculateOverlapRatio(returnLeg.geometry, outbound.geometry)
-    );
-
-    return {
-      returnLeg,
-      repeatedRoadRatio: await overlap,
-      limited: false,
-    };
-  }
-
-  const reversed = reverseGeometry(outbound.geometry);
-
-  const trimDistance = Math.min(
+export function computeTerminalTrimMeters(outboundDistance: number): number {
+  return Math.min(
     ROUND_TRIP_CONFIG.terminalTrimMaximumMeters,
     Math.max(
       ROUND_TRIP_CONFIG.terminalTrimMinimumMeters,
-      outbound.distanceMeters * ROUND_TRIP_CONFIG.terminalTrimRatio,
+      outboundDistance * ROUND_TRIP_CONFIG.terminalTrimRatio,
     ),
   );
+}
 
-  let startTrimIndex = 0;
-  let accumulated = 0;
-  for (let i = 1; i < reversed.length; i++) {
-    const dx = (reversed[i]![0] - reversed[i - 1]![0]) * 111_320 * Math.cos((reversed[i]![1] * Math.PI) / 180);
-    const dy = (reversed[i]![1] - reversed[i - 1]![1]) * 111_320;
-    accumulated += Math.sqrt(dx * dx + dy * dy);
-    if (accumulated >= trimDistance) {
-      startTrimIndex = i;
-      break;
-    }
-  }
-
-  let endTrimIndex = reversed.length - 1;
-  accumulated = 0;
-  for (let i = reversed.length - 1; i > 0; i--) {
-    const dx = (reversed[i]![0] - reversed[i - 1]![0]) * 111_320 * Math.cos((reversed[i]![1] * Math.PI) / 180);
-    const dy = (reversed[i]![1] - reversed[i - 1]![1]) * 111_320;
-    accumulated += Math.sqrt(dx * dx + dy * dy);
-    if (accumulated >= trimDistance) {
-      endTrimIndex = i;
-      break;
-    }
-  }
-
-  const trimmedShape: Position[] = reversed.slice(
-    Math.max(0, startTrimIndex),
-    Math.min(reversed.length - 1, endTrimIndex + 1),
-  );
-
-  const penaltyRequest: Record<string, unknown> = {
+function buildReturnRequest(
+  input: RoutePlanInput,
+  turnaround: Position,
+  origin: Position,
+): ProviderRouteRequest {
+  return {
     locations: [turnaround, origin],
     profile: input.profile,
     roadPreference: input.roadPreference,
     terrainPreference: input.terrainPreference,
     exclusions: input.exclusions,
     elevationIntervalMeters: ELEVATION_CONFIG.intervalMeters as 30,
-    alternateCount: ROUND_TRIP_CONFIG.alternateCount as 2,
-    linearCostFactor: ROUND_TRIP_CONFIG.linearCostFactor,
   };
+}
 
+export async function planRoundTrip(
+  input: RoutePlanInput,
+  outbound: RouteLeg,
+  provider: RoutingProvider,
+  signal: AbortSignal,
+): Promise<RoundTripResult> {
+  const positions = input.locations.map((loc) => loc.position);
+  const origin = positions[0]!;
+  const turnaround = positions[positions.length - 1]!;
+
+  /* Pulang tercepat: plain B -> A */
+  if (input.returnMode === "fastest") {
+    const request = buildReturnRequest(input, turnaround, origin);
+    const result = await provider.route(request, signal);
+    const returnLeg = result[0];
+    if (!returnLeg) {
+      throw new Error("Tidak ditemukan rute pulang.");
+    }
+    const { sorted } = scoreReturnCandidates([returnLeg], outbound);
+    return {
+      returnLeg,
+      repeatedRoadRatio: sorted[0]?.score.overlapRatio ?? 0,
+      limited: false,
+    };
+  }
+
+  /* Lewat jalan lain: reversed, terminal-trimmed cost-factor shape */
+  const trimMeters = computeTerminalTrimMeters(outbound.distanceMeters);
+  const reversed = reverseGeometry(outbound.geometry) as Position[];
+  const trimmedShape = trimGeometryTerminals(reversed, trimMeters);
+
+  const penaltyRequest = buildReturnRequest(input, turnaround, origin);
   if (trimmedShape.length >= 2) {
+    penaltyRequest.alternateCount = ROUND_TRIP_CONFIG.alternateCount as 2;
     penaltyRequest.linearCostShape = trimmedShape;
+    penaltyRequest.linearCostFactor = ROUND_TRIP_CONFIG.linearCostFactor;
   }
 
   let candidates: RouteLeg[] = [];
   let penaltyFailed = false;
+  let receivedAlternateCount = 0;
 
   try {
-    const result = await provider.route(penaltyRequest as unknown as ProviderRouteRequest, signal);
-    candidates = [...result];
-  } catch {
-    penaltyFailed = true;
-    try {
-      const fallbackRequest: ProviderRouteRequest = {
-        locations: [turnaround, origin],
-        profile: input.profile,
-        roadPreference: input.roadPreference,
-        terrainPreference: input.terrainPreference,
-        exclusions: input.exclusions,
-        elevationIntervalMeters: ELEVATION_CONFIG.intervalMeters as 30,
-      };
-      const fallback = await provider.route(fallbackRequest, signal);
-      candidates = [...fallback];
-    } catch {
-      throw new Error("Gagal merencanakan rute pulang.");
+    candidates = [...(await provider.routeCandidates(penaltyRequest, signal))];
+    receivedAlternateCount = Math.max(0, candidates.length - 1);
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw err;
     }
+    penaltyFailed = true;
+    /* One unpenalized fallback for a genuine contract/network failure */
+    const fallbackRequest = buildReturnRequest(input, turnaround, origin);
+    const fallback = await provider.route(fallbackRequest, signal);
+    candidates = [...fallback];
   }
 
   if (candidates.length === 0) {
     throw new Error("Tidak ditemukan rute pulang.");
   }
 
-  const scored = candidates
-    .filter((c) => c.distanceMeters > 0)
-    .map((candidate) => ({
-      candidate,
-      ...scoreReturnCandidate(candidate, outbound.geometry, outbound.distanceMeters),
-    }));
+  const { sorted } = scoreReturnCandidates(candidates, outbound);
+  const withinCap = sorted.filter((s) => s.score.withinDetourCap);
 
-  scored.sort((a, b) => {
-    if (Math.abs(a.score - b.score) > 1e-6) return a.score - b.score;
-    return a.candidate.distanceMeters - b.candidate.distanceMeters;
-  });
+  const chosen = withinCap.length > 0 ? withinCap[0]! : sorted[0]!;
 
-  const best = scored[0]!;
-
-  const validCandidates = scored.filter((s) => s.withinDetourCap);
-  const selected = validCandidates.length > 0 ? validCandidates[0]! : best;
-
-  const limited = penaltyFailed || selected.overlapRatio >= ROUND_TRIP_CONFIG.highOverlapWarningRatio;
-
-  if (selected.candidate.distanceMeters + outbound.distanceMeters > PRODUCT_LIMITS.maxRouteMeters) {
-    throw new Error("Maksimal total rute 500 km.");
-  }
+  const limited =
+    penaltyFailed ||
+    (trimmedShape.length >= 2 && receivedAlternateCount < ROUND_TRIP_CONFIG.alternateCount) ||
+    chosen.score.overlapRatio >= ROUND_TRIP_CONFIG.highOverlapWarningRatio;
 
   return {
-    returnLeg: selected.candidate,
-    repeatedRoadRatio: selected.overlapRatio,
+    returnLeg: chosen.leg,
+    repeatedRoadRatio: chosen.score.overlapRatio,
     limited,
   };
+}
+
+/** Merge outbound and return legs without duplicating the B join point. */
+export function mergeLegGeometry(outbound: RouteLeg, returnLeg: RouteLeg): Position[] {
+  const out = outbound.geometry;
+  const ret = returnLeg.geometry;
+
+  const outLast = out[out.length - 1];
+  const retFirst = ret[0];
+
+  if (
+    outLast &&
+    retFirst &&
+    Math.abs(outLast[0] - retFirst[0]) < 1e-7 &&
+    Math.abs(outLast[1] - retFirst[1]) < 1e-7
+  ) {
+    return [...out, ...ret.slice(1)];
+  }
+  return [...out, ...ret];
+}
+
+/** Merge elevation samples: return samples offset by outbound distance. */
+export function mergeElevationSamples(
+  outbound: RouteLeg,
+  returnLeg: RouteLeg,
+): ElevationSample[] {
+  const out = outbound.elevation;
+  const ret = returnLeg.elevation;
+
+  if (out.length === 0 && ret.length === 0) return [];
+  if (out.length === 0) return [...ret];
+
+  const merged: ElevationSample[] = [...out];
+
+  for (const sample of ret) {
+    const combinedDistance = outbound.distanceMeters + sample.distanceMeters;
+    const last = merged[merged.length - 1]!;
+    if (combinedDistance - last.distanceMeters < 0.5) {
+      /* deduplicate the B join */
+      if (last.elevationMeters === null && sample.elevationMeters !== null) {
+        merged[merged.length - 1] = { ...last, elevationMeters: sample.elevationMeters };
+      }
+      continue;
+    }
+    merged.push({
+      distanceMeters: combinedDistance,
+      elevationMeters: sample.elevationMeters,
+    });
+  }
+
+  return merged;
+}
+
+export function checkCombinedRouteLimit(outbound: RouteLeg, returnLeg: RouteLeg): void {
+  const combined = outbound.distanceMeters + returnLeg.distanceMeters;
+  if (combined > PRODUCT_LIMITS.maxRouteMeters) {
+    throw new Error("Maksimal total rute 500 km.");
+  }
 }

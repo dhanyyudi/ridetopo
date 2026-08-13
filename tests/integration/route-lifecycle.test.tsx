@@ -1,90 +1,188 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { useRoutePlannerStore } from "../../src/store/route-planner-store";
-import type { Position, RouteLocation } from "../../src/domain/location";
+import { createInitialLocations, validateRouteLocations } from "../../src/domain/location";
+import { PRODUCT_LIMITS } from "../../src/domain/route";
+import type { Position } from "../../src/domain/geo";
 
-function makeLocation(role: "origin" | "destination" | "waypoint", lng: number, lat: number): RouteLocation {
-  return {
-    id: crypto.randomUUID(),
-    role,
-    position: [lng, lat] as Position,
-    label: role === "origin" ? "Start" : role === "destination" ? "End" : "WP",
-    source: "search",
-  };
-}
-
-describe("route-planner store", () => {
+describe("route-planner store — location slots", () => {
   beforeEach(() => {
-    useRoutePlannerStore.getState().reset();
+    useRoutePlannerStore.getState().resetAll();
   });
 
-  it("initializes with default state", () => {
-    const s = useRoutePlannerStore.getState();
-    expect(s.locations).toEqual([]);
-    expect(s.profile).toBe("road-bike");
-    expect(s.returnToStart).toBe(false);
-    expect(s.isCalculating).toBe(false);
+  it("initial A/B slots exist with position null (never [0,0])", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLocations(createInitialLocations());
+
+    const locations = useRoutePlannerStore.getState().locations;
+    expect(locations).toHaveLength(2);
+    expect(locations[0]!.role).toBe("origin");
+    expect(locations[1]!.role).toBe("destination");
+    expect(locations[0]!.position).toBeNull();
+    expect(locations[1]!.position).toBeNull();
+
+    for (const loc of locations) {
+      expect(loc.position?.[0]).not.toBe(0);
+      expect(loc.position?.[1]).not.toBe(0);
+    }
   });
 
-  it("adds and removes locations", () => {
-    const store = useRoutePlannerStore.getState();
-    const loc = makeLocation("origin", 106.8, -6.2);
-    store.addLocation(loc);
-    expect(useRoutePlannerStore.getState().locations).toHaveLength(1);
+  it("adds a waypoint immediately before B", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLocations(createInitialLocations());
+    state.addWaypointBeforeDestination();
 
-    store.removeLocation(loc.id);
-    expect(useRoutePlannerStore.getState().locations).toHaveLength(0);
+    const locations = useRoutePlannerStore.getState().locations;
+    expect(locations).toHaveLength(3);
+    expect(locations[0]!.role).toBe("origin");
+    expect(locations[1]!.role).toBe("waypoint");
+    expect(locations[2]!.role).toBe("destination");
   });
 
-  it("swaps directions", () => {
-    const store = useRoutePlannerStore.getState();
-    store.addLocation(makeLocation("origin", 106.8, -6.2));
-    store.addLocation(makeLocation("destination", 106.9, -6.3));
-    store.swapDirections();
+  it("rejects the 21st intermediate waypoint", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLocations(createInitialLocations());
+    for (let i = 0; i < PRODUCT_LIMITS.maxIntermediateWaypoints; i++) {
+      state.addWaypointBeforeDestination();
+    }
 
-    const locs = useRoutePlannerStore.getState().locations;
-    expect(locs[0]!.role).toBe("origin");
-    expect(locs[1]!.role).toBe("destination");
+    expect(
+      useRoutePlannerStore.getState().locations.filter((l) => l.role === "waypoint"),
+    ).toHaveLength(20);
   });
 
-  it("toggles return mode", () => {
-    const store = useRoutePlannerStore.getState();
-    store.setReturnToStart(true);
-    expect(useRoutePlannerStore.getState().returnToStart).toBe(true);
+  it("swap keeps A first and B last", () => {
+    const state = useRoutePlannerStore.getState();
+    const locations = createInitialLocations();
+    locations[0] = { ...locations[0]!, position: [1, 1] as Position, label: "X", source: "map" };
+    locations[1] = { ...locations[1]!, position: [2, 2] as Position, label: "Y", source: "map" };
+    state.setLocations(locations);
+    state.swapDirections();
 
-    store.setReturnMode("fastest");
-    expect(useRoutePlannerStore.getState().returnMode).toBe("fastest");
+    const after = useRoutePlannerStore.getState().locations;
+    expect(after[0]!.role).toBe("origin");
+    expect(after[1]!.role).toBe("destination");
+    expect(after[0]!.position).toEqual([2, 2]);
+    expect(after[1]!.position).toEqual([1, 1]);
   });
 
-  it("preserves last valid route on error", () => {
-    const store = useRoutePlannerStore.getState();
-    const route = {
-      id: "test-route",
-      input: {} as never,
-      outbound: {} as never,
-      returnLeg: null,
-      geometry: [],
-      metrics: { distanceMeters: 0, durationSeconds: 0, elevationGainMeters: null, elevationLossMeters: null },
-      repeatedRoadRatio: null,
-      limitedReturnAlternatives: false,
-      createdAt: new Date().toISOString(),
+  it("validates locations and rejects null positions", () => {
+    const incomplete = createInitialLocations();
+    const result = validateRouteLocations(incomplete);
+    expect(result.ok).toBe(false);
+
+    const complete = incomplete.map((l) => ({
+      ...l,
+      position: [106.8, -6.2] as Position,
+      label: "Lokasi",
+      source: "map" as const,
+    }));
+    const okResult = validateRouteLocations(complete);
+    expect(okResult.ok).toBe(true);
+  });
+});
+
+describe("route-planner store — result invariants", () => {
+  beforeEach(() => {
+    useRoutePlannerStore.getState().resetAll();
+  });
+
+  const fakeRoute = {
+    id: "test-route",
+    input: {} as never,
+    outbound: {} as never,
+    returnLeg: null,
+    geometry: [],
+    metrics: {
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      elevationGainMeters: null,
+      elevationLossMeters: null,
+    },
+    repeatedRoadRatio: null,
+    limitedReturnAlternatives: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  it("keeps lastValidRoute when a route error is set", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLastValidRoute(fakeRoute as never);
+    state.setRouteError("Gagal merencanakan rute.");
+
+    const after = useRoutePlannerStore.getState();
+    expect(after.lastValidRoute?.id).toBe("test-route");
+    expect(after.routeError).toBe("Gagal merencanakan rute.");
+  });
+
+  it("marks changes unapplied without clearing the route", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLastValidRoute(fakeRoute as never);
+    state.setChangesUnapplied(true);
+
+    const after = useRoutePlannerStore.getState();
+    expect(after.changesUnapplied).toBe(true);
+    expect(after.lastValidRoute?.id).toBe("test-route");
+  });
+
+  it("clears the error when a new valid route arrives", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setRouteError("error");
+    state.setLastValidRoute(fakeRoute as never);
+
+    const after = useRoutePlannerStore.getState();
+    expect(after.routeError).toBeNull();
+    expect(after.changesUnapplied).toBe(false);
+  });
+});
+
+describe("route-planner store — views", () => {
+  beforeEach(() => {
+    useRoutePlannerStore.getState().resetAll();
+  });
+
+  it("switches between app views", () => {
+    const state = useRoutePlannerStore.getState();
+    expect(state.appView).toBe("composer");
+    state.setAppView("result");
+    expect(useRoutePlannerStore.getState().appView).toBe("result");
+    state.setAppView("road-review");
+    expect(useRoutePlannerStore.getState().appView).toBe("road-review");
+  });
+
+  it("search dialog state is explicit", () => {
+    const state = useRoutePlannerStore.getState();
+    expect(state.searchDialog.open).toBe(false);
+    state.setSearchDialog({ open: true, targetId: "abc" });
+    expect(useRoutePlannerStore.getState().searchDialog.open).toBe(true);
+    expect(useRoutePlannerStore.getState().searchDialog.targetId).toBe("abc");
+  });
+});
+
+describe("route-planner UI wiring", () => {
+  beforeEach(() => {
+    useRoutePlannerStore.getState().resetAll();
+  });
+
+  it("renders A and B slot labels via store state", () => {
+    useRoutePlannerStore.getState().setLocations(createInitialLocations());
+
+    const FakeView = () => {
+      const locations = useRoutePlannerStore((s) => s.locations);
+      return (
+        <ul>
+          {locations.map((l) => (
+            <li key={l.id} data-role={l.role} data-position={l.position === null ? "empty" : "set"}>
+              {l.role}
+            </li>
+          ))}
+        </ul>
+      );
     };
 
-    store.setLastValidRoute(route);
-    expect(useRoutePlannerStore.getState().lastValidRoute).toBe(route);
-
-    store.setRouteError("Some error");
-    expect(useRoutePlannerStore.getState().lastValidRoute).toBe(route);
-    expect(useRoutePlannerStore.getState().routeError).toBe("Some error");
-  });
-
-  it("resets to initial state", () => {
-    const store = useRoutePlannerStore.getState();
-    store.addLocation(makeLocation("origin", 106.8, -6.2));
-    store.setProfile("commuter-bike");
-    store.reset();
-
-    const s = useRoutePlannerStore.getState();
-    expect(s.locations).toEqual([]);
-    expect(s.profile).toBe("road-bike");
+    render(<FakeView />);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]!.getAttribute("data-position")).toBe("empty");
+    fireEvent.click(screen.getByText("origin"));
   });
 });

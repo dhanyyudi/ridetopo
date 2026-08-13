@@ -23,20 +23,21 @@ export function analyzeElevation(
   _routeDistanceMeters: number,
 ): AnalyzedElevation {
   if (samples.length === 0) {
-    return { samples, gainMeters: null, lossMeters: null, complete: false, terrain: [] };
+    return { samples: [], gainMeters: null, lossMeters: null, complete: false, terrain: [] };
   }
 
-  const cleaned = interpolateGaps(samples);
-  const smoothed = medianFilter(cleaned, ELEVATION_CONFIG.medianWindowSamples);
+  const interpolated = interpolateGaps(samples);
+  const smoothed = medianFilter(interpolated, ELEVATION_CONFIG.medianWindowSamples);
 
+  const hasNull = smoothed.some((s) => s.elevationMeters === null);
   const validCount = smoothed.filter((s) => s.elevationMeters !== null).length;
-  const anyNull = smoothed.some((s) => s.elevationMeters === null);
-  const complete = !anyNull && validCount > 0;
+
+  const complete = validCount >= 2 && !hasNull;
 
   let gainMeters: number | null = null;
   let lossMeters: number | null = null;
 
-  if (validCount > 1) {
+  if (complete) {
     const { gain, loss } = computeAccumulatedGainLoss(smoothed);
     gainMeters = gain;
     lossMeters = loss;
@@ -47,69 +48,81 @@ export function analyzeElevation(
   return { samples: smoothed, gainMeters, lossMeters, complete, terrain };
 }
 
-function interpolateGaps(samples: readonly ElevationSample[]): ElevationSample[] {
-  const result: ElevationSample[] = [];
+/**
+ * Interpolate only internal gaps with valid values on both sides, at most
+ * three samples/90 m. Leading, trailing, and long gaps stay null.
+ */
+export function interpolateGaps(samples: readonly ElevationSample[]): ElevationSample[] {
+  if (samples.length === 0) return [];
+
+  const result: ElevationSample[] = samples.map((s) => ({ ...s }));
   const maxGapSamples = ELEVATION_CONFIG.maximumInterpolatedGapSamples;
   const maxGapMeters = ELEVATION_CONFIG.maximumInterpolatedGapMeters;
 
-  for (let i = 0; i < samples.length; i++) {
-    result.push(samples[i]!);
+  let i = 0;
+  while (i < result.length) {
+    if (result[i]!.elevationMeters !== null) {
+      i++;
+      continue;
+    }
 
-    if (
-      samples[i]!.elevationMeters === null &&
-      i > 0 &&
-      samples[i - 1]!.elevationMeters !== null
-    ) {
-      let gapEnd = -1;
-      let gapCount = 0;
-      let gapDistance = 0;
+    /* Only internal gaps (valid value before) are eligible */
+    const left = result[i - 1];
+    if (!left || left.elevationMeters === null) {
+      i++;
+      continue;
+    }
 
-      for (let j = i; j < samples.length; j++) {
-        if (samples[j]!.elevationMeters !== null) {
-          gapEnd = j;
-          break;
-        }
-        gapCount++;
-        if (j > 0) {
-          gapDistance += samples[j]!.distanceMeters - samples[j - 1]!.distanceMeters;
-        }
-      }
-
-      if (gapEnd > 0 && gapCount <= maxGapSamples && gapDistance <= maxGapMeters) {
-        const startVal = samples[i - 1]!.elevationMeters!;
-        const endVal = samples[gapEnd]!.elevationMeters!;
-        const steps = gapEnd - i + 1;
-
-        for (let k = i; k < gapEnd; k++) {
-          const t = (k - i + 1) / steps;
-          result[result.length - 1] = {
-            ...result[result.length - 1]!,
-            elevationMeters: startVal + (endVal - startVal) * t,
-          };
-        }
-        i = gapEnd - 1;
+    let gapEnd = -1;
+    for (let j = i; j < result.length; j++) {
+      if (result[j]!.elevationMeters !== null) {
+        gapEnd = j;
+        break;
       }
     }
+    if (gapEnd === -1) break;
+
+    const gapSamples = gapEnd - i;
+    const gapMeters = result[gapEnd]!.distanceMeters - left.distanceMeters;
+
+    if (gapSamples > maxGapSamples || gapMeters > maxGapMeters) {
+      i = gapEnd;
+      continue;
+    }
+
+    const startVal = left.elevationMeters;
+    const endVal = result[gapEnd]!.elevationMeters!;
+    const steps = gapSamples + 1;
+
+    for (let k = i; k < gapEnd; k++) {
+      const t = (k - i + 1) / steps;
+      result[k] = {
+        ...result[k]!,
+        elevationMeters: startVal + (endVal - startVal) * t,
+      };
+    }
+
+    i = gapEnd + 1;
   }
 
   return result;
 }
 
-function medianFilter(samples: readonly ElevationSample[], windowSize: number): ElevationSample[] {
-  if (windowSize < 3 || samples.length < windowSize) return [...samples];
+/** Centered median filter applied only to runs of valid samples. */
+export function medianFilter(
+  samples: readonly ElevationSample[],
+  windowSize: number,
+): ElevationSample[] {
+  if (windowSize < 3 || samples.length < windowSize) {
+    return samples.map((s) => ({ ...s }));
+  }
 
   const half = Math.floor(windowSize / 2);
   const result: ElevationSample[] = [];
 
   for (let i = 0; i < samples.length; i++) {
     const sample = samples[i]!;
-
-    if (sample.elevationMeters === null) {
-      result.push({ ...sample });
-      continue;
-    }
-
-    if (i < half || i >= samples.length - half) {
+    if (sample.elevationMeters === null || i < half || i >= samples.length - half) {
       result.push({ ...sample });
       continue;
     }
@@ -117,9 +130,7 @@ function medianFilter(samples: readonly ElevationSample[], windowSize: number): 
     const window: number[] = [];
     for (let w = i - half; w <= i + half; w++) {
       const val = samples[w]!.elevationMeters;
-      if (val !== null) {
-        window.push(val);
-      }
+      if (val !== null) window.push(val);
     }
 
     if (window.length >= 3) {
@@ -134,161 +145,207 @@ function medianFilter(samples: readonly ElevationSample[], windowSize: number): 
   return result;
 }
 
-function computeAccumulatedGainLoss(samples: readonly ElevationSample[]): { gain: number; loss: number } {
+/**
+ * Accumulate gain/loss from monotonic runs; ignore runs whose amplitude is
+ * below the noise threshold. Preserves floating-point precision.
+ */
+export function computeAccumulatedGainLoss(
+  samples: readonly ElevationSample[],
+): { gain: number; loss: number } {
+  const noise = ELEVATION_CONFIG.noiseRunMeters;
   let gain = 0;
   let loss = 0;
+
   let runStart = -1;
+
+  const flushRun = (endIdx: number) => {
+    if (runStart < 0) return;
+    const startVal = samples[runStart]!.elevationMeters;
+    const endVal = samples[endIdx]!.elevationMeters;
+    if (startVal === null || endVal === null) return;
+
+    const amplitude = Math.abs(endVal - startVal);
+    if (amplitude < noise) return;
+
+    if (endVal > startVal) gain += amplitude;
+    else loss += amplitude;
+  };
 
   for (let i = 1; i < samples.length; i++) {
     const curr = samples[i]!.elevationMeters;
     const prev = samples[i - 1]!.elevationMeters;
-
-    if (curr === null || prev === null) continue;
-
-    const diff = curr - prev;
+    if (curr === null || prev === null) {
+      flushRun(i - 1);
+      runStart = -1;
+      continue;
+    }
 
     if (runStart === -1) {
       runStart = i - 1;
+      continue;
     }
 
-    const stillSameDirection =
-      (diff >= 0 && samples[runStart]!.elevationMeters! <= samples[i]!.elevationMeters!) ||
-      (diff < 0 && samples[runStart]!.elevationMeters! >= samples[i]!.elevationMeters!);
+    const runStartVal = samples[runStart]!.elevationMeters!;
+    const stillUp = runStartVal <= prev && prev <= curr;
+    const stillDown = runStartVal >= prev && prev >= curr;
 
-    if (!stillSameDirection) {
-      const runDelta = Math.abs(
-        samples[i - 1]!.elevationMeters! - samples[runStart]!.elevationMeters!,
-      );
-      if (runDelta >= ELEVATION_CONFIG.noiseRunMeters) {
-        if (samples[i - 1]!.elevationMeters! > samples[runStart]!.elevationMeters!) {
-          gain += runDelta;
-        } else {
-          loss += runDelta;
-        }
-      }
+    if (!stillUp && !stillDown) {
+      flushRun(i - 1);
       runStart = i - 1;
     }
   }
 
-  if (runStart >= 0 && runStart < samples.length - 1) {
-    const runDelta = Math.abs(
-      samples[samples.length - 1]!.elevationMeters! - samples[runStart]!.elevationMeters!,
-    );
-    if (runDelta >= ELEVATION_CONFIG.noiseRunMeters) {
-      if (samples[samples.length - 1]!.elevationMeters! > samples[runStart]!.elevationMeters!) {
-        gain += runDelta;
-      } else {
-        loss += runDelta;
-      }
-    }
-  }
+  flushRun(samples.length - 1);
 
-  return { gain: Math.round(gain), loss: Math.round(loss) };
+  return { gain, loss };
 }
 
-function classifyTerrain(samples: readonly ElevationSample[]): TerrainSection[] {
-  if (samples.length < 2) return [];
-
-  const windowMeters = ELEVATION_CONFIG.gradeWindowMeters;
-  const climbThreshold = ELEVATION_CONFIG.climbThreshold;
-  const descentThreshold = ELEVATION_CONFIG.descentThreshold;
-  const sections: TerrainSection[] = [];
-
-  let currentStart = samples[0]!.distanceMeters;
-  let currentClass: TerrainClass | null = null;
-
-  for (let i = 0; i < samples.length; i++) {
-    const grade = computeWindowGrade(samples, i, windowMeters);
-    let classification: TerrainClass | null = null;
-
-    if (grade !== null) {
-      if (grade >= climbThreshold) classification = "climb";
-      else if (grade <= descentThreshold) classification = "descent";
-      else classification = "flat";
-    }
-
-    if (classification !== currentClass) {
-      if (currentClass !== null && currentStart < samples[i]!.distanceMeters) {
-        sections.push({
-          startDistanceMeters: currentStart,
-          endDistanceMeters: samples[i]!.distanceMeters,
-          grade: computeWindowGrade(
-            samples,
-            samples.findIndex((s) => s.distanceMeters >= currentStart),
-            windowMeters,
-          ),
-          classification: currentClass,
-        });
-      }
-      currentStart = samples[i]!.distanceMeters;
-      currentClass = classification;
-    }
-  }
-
-  if (currentClass !== null) {
-    sections.push({
-      startDistanceMeters: currentStart,
-      endDistanceMeters: samples[samples.length - 1]!.distanceMeters,
-      grade: computeWindowGrade(
-        samples,
-        samples.findIndex((s) => s.distanceMeters >= currentStart),
-        windowMeters,
-      ),
-      classification: currentClass,
-    });
-  }
-
-  return mergeSmallSections(sections);
-}
-
-function computeWindowGrade(
+/** Grade over a ~90 m distance window. Returns null for unresolved windows. */
+export function computeWindowGrade(
   samples: readonly ElevationSample[],
   index: number,
-  windowMeters: number,
+  windowMeters: number = ELEVATION_CONFIG.gradeWindowMeters,
 ): number | null {
   const centerDist = samples[index]!.distanceMeters;
-  let startIdx = index;
-  let endIdx = index;
 
-  while (startIdx > 0 && centerDist - samples[startIdx - 1]!.distanceMeters < windowMeters / 2) {
+  let startIdx = index;
+  while (startIdx > 0 && centerDist - samples[startIdx - 1]!.distanceMeters <= windowMeters / 2) {
     startIdx--;
   }
-  while (endIdx < samples.length - 1 && samples[endIdx + 1]!.distanceMeters - centerDist < windowMeters / 2) {
+
+  let endIdx = index;
+  while (
+    endIdx < samples.length - 1 &&
+    samples[endIdx + 1]!.distanceMeters - centerDist <= windowMeters / 2
+  ) {
     endIdx++;
   }
 
-  if (endIdx - startIdx < 1) return null;
+  /* Extend the window until both ends have valid elevation */
+  let windowStart = startIdx;
+  let windowEnd = endIdx;
 
-  const startElev = samples[startIdx]!.elevationMeters;
-  const endElev = samples[endIdx]!.elevationMeters;
+  while (windowStart < index && samples[windowStart]!.elevationMeters === null) windowStart++;
+  while (windowEnd > index && samples[windowEnd]!.elevationMeters === null) windowEnd--;
 
+  if (windowStart >= windowEnd) return null;
+
+  const startElev = samples[windowStart]!.elevationMeters;
+  const endElev = samples[windowEnd]!.elevationMeters;
   if (startElev === null || endElev === null) return null;
 
-  const distance = samples[endIdx]!.distanceMeters - samples[startIdx]!.distanceMeters;
+  const distance = samples[windowEnd]!.distanceMeters - samples[windowStart]!.distanceMeters;
   if (distance < 1) return null;
 
   return (endElev - startElev) / distance;
 }
 
-function mergeSmallSections(sections: TerrainSection[]): TerrainSection[] {
-  if (sections.length <= 1) return sections;
+export function classifyTerrain(samples: readonly ElevationSample[]): TerrainSection[] {
+  if (samples.length < 2) return [];
 
-  const merged: TerrainSection[] = [sections[0]!];
+  const climbThreshold = ELEVATION_CONFIG.climbThreshold;
+  const descentThreshold = ELEVATION_CONFIG.descentThreshold;
+  const sections: TerrainSection[] = [];
 
-  for (let i = 1; i < sections.length; i++) {
-    const last = merged[merged.length - 1]!;
-    const curr = sections[i]!;
-    const segLen = curr.endDistanceMeters - curr.startDistanceMeters;
+  let currentStart = samples[0]!.distanceMeters;
+  let currentGrade: number | null = null;
+  let currentClass: TerrainClass | null = null;
 
-    if (segLen < 50 && merged.length > 1) {
-      merged[merged.length - 1] = {
-        ...last,
-        endDistanceMeters: curr.endDistanceMeters,
-      };
-    } else {
-      merged.push(curr);
+  const classify = (grade: number | null): TerrainClass | null => {
+    if (grade === null) return null;
+    if (grade >= climbThreshold) return "climb";
+    if (grade <= descentThreshold) return "descent";
+    return "flat";
+  };
+
+  for (let i = 0; i < samples.length; i++) {
+    const grade = computeWindowGrade(samples, i);
+    const classification = classify(grade);
+
+    const classChanged = classification !== currentClass;
+    const gradeChanged =
+      grade !== null && currentGrade !== null && Math.abs(grade - currentGrade) > 0.01;
+
+    if (classChanged || gradeChanged) {
+      if (currentClass !== null && samples[i]!.distanceMeters > currentStart) {
+        sections.push({
+          startDistanceMeters: currentStart,
+          endDistanceMeters: samples[i]!.distanceMeters,
+          grade: currentGrade,
+          classification: currentClass,
+        });
+      }
+      currentStart = samples[i]!.distanceMeters;
+      currentGrade = grade;
+      currentClass = classification;
     }
   }
 
+  if (currentClass !== null && samples[samples.length - 1]!.distanceMeters > currentStart) {
+    sections.push({
+      startDistanceMeters: currentStart,
+      endDistanceMeters: samples[samples.length - 1]!.distanceMeters,
+      grade: currentGrade,
+      classification: currentClass,
+    });
+  }
+
+  return mergeAdjacentSections(sections);
+}
+
+function mergeAdjacentSections(sections: TerrainSection[]): TerrainSection[] {
+  if (sections.length <= 1) return sections;
+
+  const merged: TerrainSection[] = [];
+  for (const section of sections) {
+    const last = merged[merged.length - 1];
+    if (last && last.classification === section.classification) {
+      merged[merged.length - 1] = {
+        ...last,
+        endDistanceMeters: section.endDistanceMeters,
+      };
+    } else {
+      merged.push(section);
+    }
+  }
   return merged;
+}
+
+/**
+ * Distance-based interpolation of elevation for an arbitrary route distance.
+ * Used by GPX export to pair elevation with geometry points.
+ */
+export function interpolateElevationAtDistance(
+  samples: readonly ElevationSample[],
+  distanceMeters: number,
+): number | null {
+  if (samples.length === 0) return null;
+
+  let left: ElevationSample | null = null;
+  let right: ElevationSample | null = null;
+
+  for (const sample of samples) {
+    if (sample.distanceMeters <= distanceMeters) {
+      left = sample;
+    } else {
+      right = sample;
+      break;
+    }
+  }
+
+  if (!left) {
+    return samples[0]!.elevationMeters;
+  }
+  if (!right) {
+    return left.elevationMeters;
+  }
+  if (left.elevationMeters === null || right.elevationMeters === null) {
+    return null;
+  }
+
+  const span = right.distanceMeters - left.distanceMeters;
+  if (span <= 0) return left.elevationMeters;
+
+  const t = (distanceMeters - left.distanceMeters) / span;
+  return left.elevationMeters + (right.elevationMeters - left.elevationMeters) * t;
 }

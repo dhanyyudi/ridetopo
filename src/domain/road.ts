@@ -6,37 +6,43 @@ export interface RoadSelection {
   segmentIds: readonly string[];
 }
 
-export const ROAD_CLASS_LABELS: Record<string, string> = {
-  motorway: "Jalan Tol",
-  trunk: "Jalan Nasional",
-  primary: "Jalan Provinsi",
-  secondary: "Jalan Kabupaten",
-  tertiary: "Jalan Lokal Utama",
-  unclassified: "Jalan Tidak Terklasifikasi",
-  residential: "Jalan Perumahan",
-  service: "Jalan Servis",
-  cycleway: "Jalur Sepeda",
-  other: "Jalan Lainnya",
+const ROAD_CLASS_DESCRIPTIONS: Record<RoadSegment["roadClass"], string> = {
+  motorway: "Jalan tol/freeway dengan akses terbatas; umumnya tidak dapat dilalui sepeda.",
+  trunk: "Jalan nasional utama non-tol.",
+  primary: "Jalan utama penghubung kota atau kawasan penting.",
+  secondary: "Jalan penghubung regional atau antarkawasan.",
+  tertiary: "Jalan penghubung lokal atau kolektor.",
+  unclassified: "Jalan umum kecil yang tetap berfungsi sebagai jalan tembus.",
+  residential: "Jalan lingkungan permukiman.",
+  service: "Jalan akses menuju bangunan, parkir, atau fasilitas.",
+  cycleway: "Jalur yang ditujukan untuk sepeda.",
+  other: "Jalan lainnya.",
 };
 
-export const SURFACE_LABELS: Record<string, string | null> = {
-  asphalt: null,
-  paved: null,
+const SURFACE_LABELS: Record<string, string> = {
+  asphalt: "Aspal",
+  paved: "Beraspal",
   concrete: "Beton",
   gravel: "Kerikil",
   dirt: "Tanah",
   sand: "Pasir",
+  compacted: "Tanah padat",
   unpaved: "Tidak beraspal",
 };
 
+export const UNNAMED_FALLBACK = "Ruas tanpa nama — Jalan Lokal — Permukaan tidak diketahui";
+export const UNNAMED_ROAD_LABEL = "Ruas tanpa nama";
+export const SURFACE_UNKNOWN_LABEL = "Permukaan tidak diketahui";
+
 export function getRoadDisplayName(segment: RoadSegment): string {
-  if (segment.name) return segment.name;
-  return "Ruas tanpa nama";
+  return segment.name ?? UNNAMED_ROAD_LABEL;
 }
 
-export function getRoadDescription(segment: RoadSegment, distanceMeters: number): string {
-  const className = ROAD_CLASS_LABELS[segment.roadClass] ?? "Jalan Lokal";
-  const surface = segment.surface ? (SURFACE_LABELS[segment.surface] ?? segment.surface) : "Permukaan tidak diketahui";
-  const km = (distanceMeters / 1000).toFixed(1);
-  return `${className} — ${surface} — km ${km}`;
+export function getRoadClassDescription(segment: RoadSegment): string {
+  return ROAD_CLASS_DESCRIPTIONS[segment.roadClass];
+}
+
+export function getSurfaceLabel(segment: RoadSegment): string | null {
+  if (!segment.surface) return SURFACE_UNKNOWN_LABEL;
+  return SURFACE_LABELS[segment.surface] ?? segment.surface;
 }

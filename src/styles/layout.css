@@ -1,0 +1,256 @@
+/* App shell */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--color-surface);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height-compact);
+  padding: 0 var(--space-4);
+  padding-top: env(safe-area-inset-top);
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  z-index: 50;
+  position: relative;
+}
+
+.header-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.header-wordmark {
+  font-size: var(--type-h3);
+  font-weight: 700;
+  color: var(--color-brand-primary);
+  letter-spacing: -0.03em;
+}
+
+.header-nav-wide {
+  display: none;
+  gap: var(--space-1);
+}
+
+.header-link {
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  font-size: var(--type-body-small);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.header-link:hover,
+.header-link.active {
+  color: var(--color-brand-primary);
+  background: var(--color-brand-soft);
+}
+
+.header-nav-compact {
+  position: relative;
+}
+
+.header-menu {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  min-width: 180px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.header-menu-item {
+  text-align: left;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-small);
+  font-weight: 600;
+  min-height: 44px;
+}
+
+.header-menu-item:hover {
+  background: var(--color-surface);
+}
+
+.offline-banner {
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  font-size: var(--type-body-small);
+  font-weight: 600;
+  text-align: center;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Layout: mobile-first. Map on top, panel/sheet below. */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-map {
+  position: relative;
+  display: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+}
+
+/* Result: map + bottom sheet */
+.layout-result {
+  height: calc(100dvh - var(--header-height-compact) - env(safe-area-inset-top));
+}
+
+.layout-result .app-map {
+  display: block;
+  flex: 1.2;
+  min-height: 220px;
+}
+
+.layout-result .app-panel {
+  flex: 1;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+  max-height: 62dvh;
+  overflow: hidden;
+}
+
+/* Review: full task surface on compact */
+.layout-review {
+  height: calc(100dvh - var(--header-height-compact) - env(safe-area-inset-top));
+}
+
+.layout-review .app-panel {
+  flex: 1;
+}
+
+/* Composer: full page on compact */
+.layout-composer {
+  height: calc(100dvh - var(--header-height-compact) - env(safe-area-inset-top));
+}
+
+.layout-composer .app-panel {
+  flex: 1;
+}
+
+/* Map host */
+.map-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
+}
+
+.map-attribution {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  z-index: 5;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+/* Medium 768-1023: sheet centered max 640px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .layout-result .app-panel {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+
+/* Wide >= 1024: persistent left panel + full map */
+@media (min-width: 1024px) {
+  .app-header {
+    height: var(--header-height-wide);
+    padding: 0 var(--space-6);
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .header-nav-wide {
+    display: flex;
+  }
+
+  .header-nav-compact {
+    display: none;
+  }
+
+  .app-layout {
+    flex-direction: row;
+    height: calc(100dvh - var(--header-height-wide) - env(safe-area-inset-top));
+  }
+
+  .app-panel {
+    width: clamp(var(--panel-wide-min), 30vw, var(--panel-wide-max));
+    flex: 0 0 auto;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-surface);
+    height: 100%;
+  }
+
+  .app-map {
+    display: block;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .layout-result .app-panel {
+    border-radius: 0;
+    box-shadow: none;
+    max-height: none;
+    background: var(--color-surface);
+  }
+
+  .layout-composer .app-map {
+    display: block;
+  }
+
+  .layout-review .app-panel {
+    border-radius: 0;
+  }
+}
+
+/* Landscape mobile: cap sheet height */
+@media (max-height: 500px) and (orientation: landscape) {
+  .layout-result .app-map {
+    min-height: 0;
+  }
+
+  .layout-result .app-panel {
+    max-height: 70dvh;
+  }
+}

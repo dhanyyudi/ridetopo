@@ -18,8 +18,8 @@
 html {
   font-family: var(--font-family);
   font-size: 16px;
-  line-height: var(--leading-normal);
-  color: var(--color-text-primary);
+  line-height: var(--type-body);
+  color: var(--color-ink);
   background: var(--color-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -46,21 +46,23 @@ button {
   background: none;
   color: inherit;
   font-size: inherit;
+  font-variant-numeric: tabular-nums;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
 }
 
 a {
-  color: var(--color-primary);
-  text-decoration: underline;
+  color: var(--color-brand-primary);
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-primary);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }

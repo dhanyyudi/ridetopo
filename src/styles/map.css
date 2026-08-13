@@ -1,13 +1,7 @@
-.map-container {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.map-container .maplibregl-ctrl-attrib {
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 2px 4px;
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  padding: 2px 4px !important;
   border-radius: var(--radius-sm);
 }
 
@@ -18,101 +12,52 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface-alt);
-  color: var(--color-text-secondary);
-  gap: var(--space-4);
-  z-index: 1;
+  background: var(--color-map-tint);
+  color: var(--color-text-muted);
+  gap: var(--space-3);
+  z-index: 2;
+  padding: var(--space-6);
+  text-align: center;
 }
 
-.map-overlay {
-  position: absolute;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.route-casing {
-  stroke: var(--color-white);
-  stroke-width: 6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-  opacity: 0.9;
-}
-
-.route-core {
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-}
-
-.route-core.neutral {
-  stroke: var(--color-primary);
-}
-
-.route-core.climb {
-  stroke: var(--color-climb);
-}
-
-.route-core.flat {
-  stroke: var(--color-primary);
-}
-
-.route-core.descent {
-  stroke: var(--color-descent);
-}
-
-.route-hit {
-  stroke: transparent;
-  stroke-width: 24;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-  cursor: pointer;
-}
-
-.route-selection {
-  stroke: #B45309;
-  stroke-width: 5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-}
-
-.marker {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid var(--color-white);
-  box-shadow: var(--shadow-md);
+/* Markers */
+.ridetopo-marker {
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: default;
 }
 
-.marker-origin {
-  background: var(--color-primary);
-}
-
-.marker-waypoint {
-  background: var(--color-text-secondary);
-}
-
-.marker-destination {
-  background: var(--color-climb);
-}
-
-.marker-label {
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: var(--text-xs);
+.ridetopo-marker .marker-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: var(--type-label);
   font-weight: 700;
-  color: var(--color-text-primary);
-  background: var(--color-white);
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  box-shadow: var(--shadow-sm);
+  background: var(--color-brand-primary);
+  color: var(--color-surface-raised);
+  border: 2.5px solid var(--color-surface-raised);
+  box-shadow: 0 1px 4px rgba(20, 32, 30, 0.25);
+}
+
+.ridetopo-marker.marker-destination .marker-inner {
+  background: var(--color-terrain-climb);
+}
+
+.ridetopo-marker.marker-waypoint .marker-inner {
+  background: var(--color-surface-raised);
+  color: var(--color-brand-primary);
+  border: 2.5px solid var(--color-brand-primary);
+}
+
+.ridetopo-marker.marker-origin-destination .marker-inner {
+  background: var(--color-ink);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
 }

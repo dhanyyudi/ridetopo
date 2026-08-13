@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const VIEWPORTS = [
   { name: "iPhone SE", width: 320, height: 844 },
@@ -13,59 +14,70 @@ test.describe("Shell accessibility", () => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto("/");
 
-      // Header should be visible
       const header = page.locator("header");
       await expect(header).toBeVisible();
 
-      // No horizontal overflow at any viewport
       const html = page.locator("html");
       const scrollWidth = await html.evaluate((el) => el.scrollWidth);
       const clientWidth = await html.evaluate((el) => el.clientWidth);
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
 
-      // Brand is visible in header
       await expect(page.locator("header")).toContainText("RideTopo");
     });
   }
 
-  test("navigates to Privacy and About", async ({ page }) => {
+  test("navigates to Privacy and About through the menu", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    // Navigate to Privacy
-    await page.click("text=Privasi");
-    await expect(page.locator("h2")).toContainText("Privasi");
-    await page.click("text=Kembali");
+    await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Privasi" }).click();
+    await expect(page.getByRole("heading", { name: "Privasi" })).toBeVisible();
 
-    // Navigate to About
-    await page.click("text=Tentang");
-    await expect(page.locator("h2")).toContainText("Tentang");
-    await page.click("text=Kembali");
+    /* Return to composer via header brand */
+    await page.getByRole("button", { name: /RideTopo/ }).first().click();
+
+    await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Tentang" }).click();
+    await expect(page.getByRole("heading", { name: "Tentang" })).toBeVisible();
   });
 
-  test("keyboard focus is visible", async ({ page }) => {
+  test("keyboard focus lands on a real element with a visible focus ring", async ({ page }) => {
     await page.goto("/");
-    // Tab through interactive elements
+    await expect(page.getByText("Titik mulai")).toBeVisible();
+
     await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    // Should not throw - just verify focus ring is applied
-    const focused = page.locator(":focus-visible");
-    const count = await focused.count();
-    expect(count).toBeGreaterThanOrEqual(0);
+    const focusedText = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el) return "";
+      const ring = window.getComputedStyle(el).outlineWidth;
+      return `${el.tagName}:${(el as HTMLElement).innerText ?? ""}:${ring}`;
+    });
+    expect(focusedText).toContain("BUTTON");
+    expect(focusedText).not.toMatch(/:0px$/);
   });
 
   test("manifest link and service worker are present", async ({ page }) => {
     await page.goto("/");
 
-    // Check manifest link
     const manifestLink = page.locator('link[rel="manifest"]');
     await expect(manifestLink).toHaveAttribute("href");
 
-    // Service worker should be registered
-    const sw = await page.evaluate(async () => {
-      const regs = await navigator.serviceWorker?.getRegistrations();
-      return regs?.length ?? 0;
+    const swCount = await page.evaluate(async () => {
+      if (!("serviceWorker" in navigator)) return 0;
+      const regs = await navigator.serviceWorker.getRegistrations();
+      return regs.length;
     });
-    expect(sw).toBeGreaterThanOrEqual(0);
+    expect(swCount).toBeGreaterThan(0);
+  });
+
+  test("axe finds no serious or critical violations on the composer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.getByText("Titik mulai")).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    expect(serious.map((v) => v.id)).toEqual([]);
   });
 });

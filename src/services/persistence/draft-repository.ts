@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from "idb";
 import type { DraftV1 } from "@/domain/export";
+import { parseDraft } from "./draft-serialization";
 
 const DB_NAME = "ridetopo-draft";
 const STORE_NAME = "drafts";
@@ -20,18 +21,19 @@ function getDb(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
-export const draftRepository = {
+export interface DraftRepository {
+  load(): Promise<DraftV1 | null>;
+  save(draft: DraftV1): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export const draftRepository: DraftRepository = {
   async load(): Promise<DraftV1 | null> {
     try {
       const db = await getDb();
-      const raw = await db.get(STORE_NAME, KEY);
+      const raw: unknown = await db.get(STORE_NAME, KEY);
       if (!raw) return null;
-
-      const draft = raw as DraftV1;
-      if (draft.version !== 1) return null;
-      if (!draft.route || !draft.route.id) return null;
-
-      return draft;
+      return parseDraft(raw);
     } catch {
       return null;
     }
@@ -39,10 +41,12 @@ export const draftRepository = {
 
   async save(draft: DraftV1): Promise<void> {
     try {
+      const parsed = parseDraft(draft);
+      if (!parsed) return;
       const db = await getDb();
-      await db.put(STORE_NAME, draft, KEY);
+      await db.put(STORE_NAME, parsed, KEY);
     } catch {
-      // Silently fail - draft is best-effort
+      /* best effort */
     }
   },
 
@@ -51,7 +55,7 @@ export const draftRepository = {
       const db = await getDb();
       await db.delete(STORE_NAME, KEY);
     } catch {
-      // Silently fail
+      /* best effort */
     }
   },
 };

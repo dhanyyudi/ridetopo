@@ -10,48 +10,41 @@ interface Props {
 
 export function RoundTripControl({ enabled, mode, onToggle, onModeChange }: Props) {
   return (
-    <div style={{
-      padding: "var(--space-3) var(--space-4)",
-      background: "var(--color-surface-alt)",
-      borderRadius: "var(--radius-md)",
-    }}>
-      <label style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-3)",
-        cursor: "pointer",
-        fontWeight: 600,
-        fontSize: "var(--text-sm)",
-      }}>
+    <div className="roundtrip-control">
+      <label className="roundtrip-toggle-row">
         <input
           type="checkbox"
+          className="roundtrip-switch"
           checked={enabled}
           onChange={(e) => onToggle(e.target.checked)}
-          style={{ width: "20px", height: "20px", accentColor: "var(--color-primary)" }}
         />
-        {COPY.returnToStart}
+        <span className="roundtrip-label">{COPY.returnToStart}</span>
       </label>
 
       {enabled && (
-        <div style={{ marginTop: "var(--space-3)", paddingLeft: "var(--space-8)" }}>
-          <label className="field-label">{COPY.returnMode}</label>
-          <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}>
+        <div className="roundtrip-details">
+          <span className="roundtrip-return-label">{COPY.returnMode}</span>
+          <div className="segmented" role="radiogroup" aria-label={COPY.returnMode}>
             <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "different-road"}
+              className={mode === "different-road" ? "segmented-item active" : "segmented-item"}
               onClick={() => onModeChange("different-road")}
-              className={mode === "different-road" ? "btn btn-primary" : "btn btn-secondary"}
-              style={{ flex: 1, fontSize: "var(--text-xs)" }}
             >
               {COPY.returnDifferentRoad}
             </button>
             <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "fastest"}
+              className={mode === "fastest" ? "segmented-item active" : "segmented-item"}
               onClick={() => onModeChange("fastest")}
-              className={mode === "fastest" ? "btn btn-primary" : "btn btn-secondary"}
-              style={{ flex: 1, fontSize: "var(--text-xs)" }}
             >
               {COPY.returnFastest}
             </button>
           </div>
-          <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", marginTop: "var(--space-2)" }}>
+          <p className="section-helper">
             {mode === "different-road" ? COPY.returnHelper : COPY.returnFastestHelper}
           </p>
         </div>

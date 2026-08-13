@@ -1,117 +1,130 @@
 import { COPY } from "@/content/id";
-import type { RouteLocation } from "@/domain/location";
+import type { EditableRouteLocation } from "@/domain/location";
+import { MapPin, Search, LocateFixed, X, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Props {
-  location: RouteLocation;
-  index: number;
-  total: number;
-  onRemove: () => void;
+  location: EditableRouteLocation;
+  waypointIndex: number;
+  canRemove: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onOpenSearch: () => void;
   onOpenMapPicker: () => void;
   onUseGeolocation: () => void;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  dragHandleSlot?: React.ReactNode;
 }
 
-export function LocationField({ location, index, total, onRemove, onOpenSearch, onOpenMapPicker, onUseGeolocation }: Props) {
+export function LocationField({
+  location,
+  waypointIndex,
+  canRemove,
+  canMoveUp,
+  canMoveDown,
+  onOpenSearch,
+  onOpenMapPicker,
+  onUseGeolocation,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  dragHandleSlot,
+}: Props) {
   const isOrigin = location.role === "origin";
   const isDestination = location.role === "destination";
+  const isWaypoint = location.role === "waypoint";
+
+  const markerLabel = isOrigin ? "A" : isDestination ? "B" : String(waypointIndex);
+  const fieldLabel = isOrigin
+    ? COPY.startPoint
+    : isDestination
+      ? COPY.destination
+      : `${COPY.waypointLabel} ${waypointIndex}`;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: "0.5rem",
-        alignItems: "center",
-        padding: "0.75rem",
-        background: "var(--color-white)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-md)",
-      }}
-    >
-      <div
-        style={{
-          width: "28px",
-          height: "28px",
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          background: isOrigin
-            ? "var(--color-primary)"
-            : isDestination
-              ? "var(--color-climb)"
-              : "var(--color-text-secondary)",
-          color: "white",
-          fontSize: "var(--text-xs)",
-          fontWeight: 700,
-        }}
-      >
-        {isOrigin ? "A" : isDestination ? "B" : index}
+    <div className="location-field">
+      <div className={`location-marker ${isOrigin || isDestination ? "filled" : "outline"}`} aria-hidden="true">
+        {markerLabel}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <label className="field-label" style={{ marginBottom: 0 }}>
-          {isOrigin ? COPY.startPoint : isDestination ? COPY.destination : `${COPY.waypointLabel} ${index}`}
+      <div className="location-field-main">
+        <label className="field-label" id={`location-label-${location.id}`}>
+          {fieldLabel}
         </label>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={onOpenSearch}
-          onKeyDown={(e) => e.key === "Enter" && onOpenSearch()}
-          style={{
-            padding: "0.5rem",
-            color: location.label !== "" ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
-            fontSize: "var(--text-sm)",
-            cursor: "pointer",
-            borderRadius: "var(--radius-sm)",
-          }}
-        >
-          {location.label || COPY.searchPlaceholder}
-        </div>
-      </div>
 
-      <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
         <button
-          onClick={onOpenMapPicker}
-          className="btn btn-ghost"
-          style={{ padding: "0.25rem", minWidth: "32px", minHeight: "32px" }}
-          title={COPY.pickOnMap}
-          aria-label={COPY.pickOnMap}
+          type="button"
+          className="location-value"
+          aria-labelledby={`location-label-${location.id}`}
+          onClick={onOpenSearch}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-            <circle cx="12" cy="9" r="2.5"/>
-          </svg>
+          <Search size={16} aria-hidden="true" />
+          <span className={location.position ? "filled" : "placeholder"}>
+            {location.position && location.label ? location.label : COPY.searchPlaceholder}
+          </span>
         </button>
 
-        {isOrigin && (
+        <div className="location-actions">
           <button
-            onClick={onUseGeolocation}
-            className="btn btn-ghost"
-            style={{ padding: "0.25rem", minWidth: "32px", minHeight: "32px" }}
-            title={COPY.myLocation}
-            aria-label={COPY.myLocation}
+            type="button"
+            className="location-action"
+            onClick={onOpenMapPicker}
+            aria-label={`${COPY.pickOnMap}: ${fieldLabel}`}
+            title={COPY.pickOnMap}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-            </svg>
+            <MapPin size={16} aria-hidden="true" />
+            <span>{COPY.pickOnMap}</span>
           </button>
-        )}
 
-        {total > 2 && (
-          <button
-            onClick={onRemove}
-            className="btn btn-ghost"
-            style={{ padding: "0.25rem", minWidth: "32px", minHeight: "32px", color: "var(--color-error)" }}
-            title={COPY.removeWaypoint}
-            aria-label={`${COPY.removeWaypoint}: ${isOrigin ? "A" : isDestination ? "B" : index}`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        )}
+          {isOrigin && (
+            <button
+              type="button"
+              className="location-action"
+              onClick={onUseGeolocation}
+              aria-label={`${COPY.myLocation}: ${fieldLabel}`}
+              title={COPY.myLocation}
+            >
+              <LocateFixed size={16} aria-hidden="true" />
+              <span>{COPY.myLocation}</span>
+            </button>
+          )}
+
+          {isWaypoint && canMoveUp && (
+            <button
+              type="button"
+              className="location-icon-action"
+              onClick={onMoveUp}
+              aria-label={`${COPY.moveUp}: ${COPY.waypointLabel} ${waypointIndex}`}
+            >
+              <ChevronUp size={16} aria-hidden="true" />
+            </button>
+          )}
+
+          {isWaypoint && canMoveDown && (
+            <button
+              type="button"
+              className="location-icon-action"
+              onClick={onMoveDown}
+              aria-label={`${COPY.moveDown}: ${COPY.waypointLabel} ${waypointIndex}`}
+            >
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          )}
+
+          {canRemove && (
+            <button
+              type="button"
+              className="location-icon-action danger"
+              onClick={onRemove}
+              aria-label={`${COPY.removeWaypoint} ${isWaypoint ? waypointIndex : markerLabel}`}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          )}
+
+          {isWaypoint && dragHandleSlot}
+        </div>
       </div>
     </div>
   );
