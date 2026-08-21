@@ -4,8 +4,6 @@ import {
   mockTiles,
   planJourney,
   outboundResponse,
-  OUTBOUND_SHAPE,
-  ROUTE_LENGTH_KM,
 } from "./helpers";
 
 /**
