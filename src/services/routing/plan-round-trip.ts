@@ -2,7 +2,6 @@ import type { RoutePlanInput, RouteLeg, ElevationSample } from "@/domain/route";
 import type { RoutingProvider, ProviderRouteRequest } from "@/providers/contracts";
 import { ROUND_TRIP_CONFIG, ELEVATION_CONFIG, PRODUCT_LIMITS } from "@/domain/route";
 import type { Position } from "@/domain/geo";
-import { reverseGeometry } from "@/lib/polyline6";
 import { isAbortError } from "@/lib/abortable-request";
 import {
   trimGeometryTerminals,
@@ -66,10 +65,13 @@ export async function planRoundTrip(
     };
   }
 
-  /* Lewat jalan lain: reversed, terminal-trimmed cost-factor shape */
+  /* Lewat jalan lain: forward, terminal-trimmed cost-factor shape.
+     The shape must keep the outbound travel direction: the live Valhalla
+     contract edge-walks the factor line along directed edges, so a reversed
+     shape fails with error 233 (Failed to edge walk line feature) whenever
+     the corridor contains a one-way edge. */
   const trimMeters = computeTerminalTrimMeters(outbound.distanceMeters);
-  const reversed = reverseGeometry(outbound.geometry) as Position[];
-  const trimmedShape = trimGeometryTerminals(reversed, trimMeters);
+  const trimmedShape = trimGeometryTerminals(outbound.geometry as Position[], trimMeters);
 
   const penaltyRequest = buildReturnRequest(input, turnaround, origin);
   if (trimmedShape.length >= 2) {

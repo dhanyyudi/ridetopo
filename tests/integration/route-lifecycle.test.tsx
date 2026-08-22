@@ -133,6 +133,20 @@ describe("route-planner store — result invariants", () => {
     expect(after.routeError).toBeNull();
     expect(after.changesUnapplied).toBe(false);
   });
+
+  it("discards cached road segments when a new route arrives", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLastValidRoute(fakeRoute as never);
+    state.setRoadSegments([{ id: "seg-1" } ] as never);
+    state.setRoadMetadataError("Gagal memuat metadata ruas.");
+
+    useRoutePlannerStore.getState().setLastValidRoute({ ...fakeRoute, id: "test-route-2" } as never);
+
+    const after = useRoutePlannerStore.getState();
+    expect(after.lastValidRoute?.id).toBe("test-route-2");
+    expect(after.roadSegments).toBeNull();
+    expect(after.roadMetadataError).toBeNull();
+  });
 });
 
 describe("route-planner store — views", () => {

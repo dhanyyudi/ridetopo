@@ -209,7 +209,16 @@ export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
   setActiveExclusions: (activeExclusions) => set({ activeExclusions }),
 
   setLastValidRoute: (lastValidRoute) =>
-    set({ lastValidRoute, routeError: null, changesUnapplied: false }),
+    /* Road metadata is keyed to the route it was traced from; a new route
+       invalidates it so the review panel never shows stale segments and
+       persisted drafts never carry metadata from a previous route. */
+    set({
+      lastValidRoute,
+      routeError: null,
+      changesUnapplied: false,
+      roadSegments: null,
+      roadMetadataError: null,
+    }),
   setIsCalculating: (isCalculating) => set({ isCalculating }),
   setRouteError: (routeError) => set({ routeError }),
   setChangesUnapplied: (changesUnapplied) => set({ changesUnapplied }),

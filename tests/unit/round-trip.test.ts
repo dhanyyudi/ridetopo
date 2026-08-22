@@ -44,7 +44,7 @@ function makeInput(overrides: Partial<RoutePlanInput> = {}): RoutePlanInput {
 }
 
 describe("planRoundTrip orchestration", () => {
-  it("requests B->A with reversed terminal-trimmed shape and alternates", async () => {
+  it("requests B->A with forward terminal-trimmed shape and alternates", async () => {
     const outbound = makeLeg({ distanceMeters: 15000 });
 
     let captured: ProviderRouteRequest | null = null;
@@ -74,9 +74,11 @@ describe("planRoundTrip orchestration", () => {
     expect(captured!.linearCostShape).toBeDefined();
     expect(captured!.linearCostShape!.length).toBeGreaterThanOrEqual(2);
 
-    /* Reversed: first point of penalty shape is near B */
+    /* Forward: first point of penalty shape is near A (Valhalla edge-walks
+       the factor line along directed edges; a reversed shape fails the live
+       contract with error 233 on one-way corridors) */
     const shape = captured!.linearCostShape!;
-    expect(shape[0]![0]).toBeGreaterThan(shape[shape.length - 1]![0]);
+    expect(shape[0]![0]).toBeLessThan(shape[shape.length - 1]![0]);
 
     /* Terminal-trimmed: shape shorter than the full outbound */
     expect(shape.length).toBeLessThan(outbound.geometry.length);

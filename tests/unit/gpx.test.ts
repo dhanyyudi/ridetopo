@@ -128,6 +128,39 @@ describe("buildGpx", () => {
     expect(gpx.match(/<wpt/g)).toHaveLength(2);
   });
 
+  it("maps return-leg elevation onto the combined distance axis", () => {
+    /* Round trip A->B->A over a 600 m + 600 m geometry. The return leg's
+       samples are 0-based relative to the return leg; without the merge
+       offset every point past the midpoint would read the wrong sample. */
+    const returnGeometry: Position[] = [
+      [106.82, -6.21] as Position,
+      [106.8, -6.2] as Position,
+    ];
+    const route = makeRoute({
+      input: { ...makeRoute().input, returnToStart: true },
+      returnLeg: makeLeg(
+        returnGeometry,
+        [
+          { distanceMeters: 0, elevationMeters: 50 },
+          { distanceMeters: 600, elevationMeters: 80 },
+        ],
+        600,
+      ),
+      geometry: [
+        [106.8, -6.2] as Position,
+        [106.82, -6.21] as Position,
+        [106.8, -6.2] as Position,
+      ],
+      metrics: { distanceMeters: 1200, durationSeconds: 7200, elevationGainMeters: null, elevationLossMeters: null },
+    });
+    const gpx = buildGpx(route);
+    const eleValues = [...gpx.matchAll(/<ele>([\d.]+)<\/ele>/g)].map((m) => Number(m[1]));
+    /* Last trkpt sits at the end of the combined path (~combined length),
+       so it must map to the return leg's final sample (80 m), not to the
+       outbound profile which ends at 600 m / 30 m elevation. */
+    expect(eleValues[eleValues.length - 1]).toBe(80);
+  });
+
   it("generates safe lowercase slug filenames", () => {
     const filename = generateGpxFilename(makeRoute());
     expect(filename).toMatch(/^ridetopo-jakarta-pusat-depok-sekitar-\d{4}-\d{2}-\d{2}\.gpx$/);
