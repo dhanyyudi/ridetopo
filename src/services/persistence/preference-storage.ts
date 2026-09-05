@@ -21,7 +21,9 @@ export interface StoredPreferences {
  * round-trip state belong to the validated IndexedDB draft — nothing here may
  * reveal where someone rides.
  */
-export function loadPreferences(storage: Storage | undefined = safeStorage()): StoredPreferences | null {
+export function loadPreferences(
+  storage: Storage | null | undefined = safeStorage(),
+): StoredPreferences | null {
   if (!storage) return null;
   try {
     const raw = storage.getItem(STORAGE_KEY);
@@ -37,7 +39,7 @@ export function loadPreferences(storage: Storage | undefined = safeStorage()): S
 
 export function savePreferences(
   preferences: StoredPreferences,
-  storage: Storage | undefined = safeStorage(),
+  storage: Storage | null | undefined = safeStorage(),
 ): void {
   if (!storage) return;
   try {
@@ -47,7 +49,7 @@ export function savePreferences(
   }
 }
 
-export function clearPreferences(storage: Storage | undefined = safeStorage()): void {
+export function clearPreferences(storage: Storage | null | undefined = safeStorage()): void {
   if (!storage) return;
   try {
     storage.removeItem(STORAGE_KEY);
@@ -56,10 +58,14 @@ export function clearPreferences(storage: Storage | undefined = safeStorage()): 
   }
 }
 
-function safeStorage(): Storage | undefined {
+/**
+ * `null` means "no storage available" and is what callers pass to say so
+ * explicitly — passing `undefined` would only re-trigger the default.
+ */
+function safeStorage(): Storage | null {
   try {
-    return typeof localStorage === "undefined" ? undefined : localStorage;
+    return typeof localStorage === "undefined" ? null : localStorage;
   } catch {
-    return undefined;
+    return null;
   }
 }

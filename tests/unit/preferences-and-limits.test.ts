@@ -72,21 +72,50 @@ describe("preference storage", () => {
     expect(loadPreferences(storage)).toBeNull();
   });
 
-  it("returns null after clearing and survives storage being unavailable", () => {
+  it("returns null after clearing", () => {
     savePreferences(
       { profile: "road-bike", roadPreference: "standard", terrainPreference: "standard" },
       storage,
     );
     clearPreferences(storage);
     expect(loadPreferences(storage)).toBeNull();
+  });
+
+  it("survives storage being absent", () => {
+    /* `null`, not `undefined`: passing undefined would re-trigger the
+       default argument and reach whatever storage the environment has. */
+    const defaults = {
+      profile: "road-bike",
+      roadPreference: "standard",
+      terrainPreference: "standard",
+    } as const;
+
+    expect(() => savePreferences(defaults, null)).not.toThrow();
+    expect(() => clearPreferences(null)).not.toThrow();
+    expect(loadPreferences(null)).toBeNull();
+  });
+
+  it("survives storage that throws, as it does in private mode", () => {
+    const hostile = {
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    } as unknown as Storage;
 
     expect(() =>
       savePreferences(
         { profile: "road-bike", roadPreference: "standard", terrainPreference: "standard" },
-        undefined,
+        hostile,
       ),
     ).not.toThrow();
-    expect(loadPreferences(undefined)).toBeNull();
+    expect(() => clearPreferences(hostile)).not.toThrow();
+    expect(loadPreferences(hostile)).toBeNull();
   });
 });
 
