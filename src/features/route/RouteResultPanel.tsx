@@ -4,6 +4,7 @@ import type { useRoutePlannerController } from "./use-route-planner-controller";
 import { getRouteElevation } from "@/services/routing/route-elevation";
 import { ElevationChart } from "@/features/elevation/ElevationChart";
 import { ElevationSummary } from "@/features/elevation/ElevationSummary";
+import { TerrainLegend } from "@/features/elevation/TerrainLegend";
 import { RouteSummary } from "./RouteSummary";
 import { Pencil, Download, Image as ImageIcon, Map as MapIcon } from "lucide-react";
 
@@ -50,17 +51,23 @@ export function RouteResultPanel({ controller, offline }: Props) {
           </p>
         )}
 
-        {elevation && (
-          <section className="result-section" aria-labelledby="elevation-heading">
-            <h2 id="elevation-heading" className="section-title">
-              {COPY.elevationGain}
-            </h2>
-            <ElevationSummary elevation={elevation} />
-            <div className="chart-host">
-              <ElevationChart samples={elevation.samples} terrain={elevation.terrain} height={190} />
-            </div>
-          </section>
-        )}
+        <section className="result-section" aria-labelledby="elevation-heading">
+          <h2 id="elevation-heading" className="section-title">
+            {COPY.elevationSectionTitle}
+          </h2>
+          <ElevationSummary elevation={elevation} />
+          <div className="chart-host">
+            <ElevationChart
+              samples={elevation.samples}
+              terrain={elevation.terrain}
+              height={190}
+              cursor={store.chartCursorMeters}
+              onCursorChange={store.setChartCursorMeters}
+            />
+          </div>
+          {/* Terrain must never be read from colour alone. */}
+          <TerrainLegend />
+        </section>
 
         <section className="result-section">
           <button

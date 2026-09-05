@@ -334,40 +334,54 @@ function mergeAdjacentSections(sections: TerrainSection[]): TerrainSection[] {
 }
 
 /**
+ * Sample elevation at increasing route distances.
+ *
+ * The returned function keeps a cursor, so pairing every geometry vertex of a
+ * long route with its elevation stays linear instead of rescanning the sample
+ * array once per vertex. Distances must be requested in ascending order;
+ * out-of-order requests fall back to a scan from the start.
+ */
+export function createElevationInterpolator(
+  samples: readonly ElevationSample[],
+): (distanceMeters: number) => number | null {
+  let cursor = 0;
+
+  return (distanceMeters: number): number | null => {
+    if (samples.length === 0) return null;
+
+    if (samples[cursor]!.distanceMeters > distanceMeters) cursor = 0;
+    while (
+      cursor < samples.length - 1 &&
+      samples[cursor + 1]!.distanceMeters <= distanceMeters
+    ) {
+      cursor++;
+    }
+
+    const left = samples[cursor]!;
+    if (left.distanceMeters > distanceMeters) {
+      /* Before the first sample. */
+      return left.elevationMeters;
+    }
+
+    const right = samples[cursor + 1];
+    if (!right) return left.elevationMeters;
+    if (left.elevationMeters === null || right.elevationMeters === null) return null;
+
+    const span = right.distanceMeters - left.distanceMeters;
+    if (span <= 0) return left.elevationMeters;
+
+    const t = (distanceMeters - left.distanceMeters) / span;
+    return left.elevationMeters + (right.elevationMeters - left.elevationMeters) * t;
+  };
+}
+
+/**
  * Distance-based interpolation of elevation for an arbitrary route distance.
- * Used by GPX export to pair elevation with geometry points.
+ * Prefer `createElevationInterpolator` when walking a whole route.
  */
 export function interpolateElevationAtDistance(
   samples: readonly ElevationSample[],
   distanceMeters: number,
 ): number | null {
-  if (samples.length === 0) return null;
-
-  let left: ElevationSample | null = null;
-  let right: ElevationSample | null = null;
-
-  for (const sample of samples) {
-    if (sample.distanceMeters <= distanceMeters) {
-      left = sample;
-    } else {
-      right = sample;
-      break;
-    }
-  }
-
-  if (!left) {
-    return samples[0]!.elevationMeters;
-  }
-  if (!right) {
-    return left.elevationMeters;
-  }
-  if (left.elevationMeters === null || right.elevationMeters === null) {
-    return null;
-  }
-
-  const span = right.distanceMeters - left.distanceMeters;
-  if (span <= 0) return left.elevationMeters;
-
-  const t = (distanceMeters - left.distanceMeters) / span;
-  return left.elevationMeters + (right.elevationMeters - left.elevationMeters) * t;
+  return createElevationInterpolator(samples)(distanceMeters);
 }

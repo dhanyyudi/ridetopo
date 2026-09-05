@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { Position } from "@/domain/geo";
-import type { LineLayerSpecification } from "maplibre-gl";
+import type { TerrainSection } from "@/domain/elevation";
+import type { LineLayerSpecification, CircleLayerSpecification } from "maplibre-gl";
 import { COPY } from "@/content/id";
-import { getBasemapStyleUrl, BASEMAP_ATTRIBUTION } from "@/providers/basemap/open-free-map-provider";
+import { getBasemapStyleUrl, BASEMAP_ATTRIBUTION_LINKS } from "@/providers/basemap/open-free-map-provider";
+import { distanceAlongRoute, cumulativeDistances } from "@/services/routing/calculate-overlap";
 import { MapFallback } from "./MapFallback";
 import {
   ROUTE_CASING_LAYER,
   ROUTE_CORE_LAYER,
   ROUTE_HIT_LAYER,
   ROUTE_SELECTION_LAYER,
+  ROUTE_NEUTRAL_COLOR,
+  ROUTE_SELECTION_COLOR,
+  TERRAIN_COLOR_EXPRESSION,
+  buildTerrainFeatures,
 } from "./map-layers";
+
+const ROUTE_CURSOR_LAYER = "route-cursor";
 
 export interface MapMarker {
   id: string;
@@ -21,8 +29,11 @@ export interface MapMarker {
 interface Props {
   markers: readonly MapMarker[];
   routeGeometry: readonly Position[] | null;
-  routeColor?: string;
+  /** Terrain sections colour the route; omit for a single neutral line. */
+  terrain?: readonly TerrainSection[] | null;
   selectionGeometry?: readonly Position[] | null;
+  /** Distance along the route to mark, for chart/map cross-highlighting. */
+  cursorDistanceMeters?: number | null;
   fitPadding?: number;
   onRouteClick?: (distanceMeters: number) => void;
   className?: string;
@@ -36,8 +47,9 @@ let maplibreModule: typeof import("maplibre-gl") | null = null;
 export function MapCanvas({
   markers,
   routeGeometry,
-  routeColor,
+  terrain,
   selectionGeometry,
+  cursorDistanceMeters,
   fitPadding = 80,
   onRouteClick,
   className,
@@ -48,6 +60,12 @@ export function MapCanvas({
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
   const [basemapFailed, setBasemapFailed] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+
+  /* Held in refs so a new callback or a new route never tears down the map. */
+  const routeClickRef = useRef(onRouteClick);
+  routeClickRef.current = onRouteClick;
+  const routeGeometryRef = useRef(routeGeometry);
+  routeGeometryRef.current = routeGeometry;
 
   /* Init map once — never online-required when offline */
   useEffect(() => {
@@ -65,7 +83,7 @@ export function MapCanvas({
           style: getBasemapStyleUrl(),
           center: DEFAULT_CENTER,
           zoom: 11,
-          attributionControl: { compact: true },
+          attributionControl: false,
         });
         mapRef.current = map;
         map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -74,11 +92,12 @@ export function MapCanvas({
         });
 
         map.on("click", ROUTE_HIT_LAYER, (e) => {
-          if (!onRouteClick) return;
-          const feature = e.features?.[0];
-          if (feature?.properties?.distanceMeters != null) {
-            onRouteClick(Number(feature.properties.distanceMeters));
-          }
+          const handler = routeClickRef.current;
+          const geometry = routeGeometryRef.current;
+          if (!handler || !geometry || geometry.length < 2) return;
+          /* Project the tap onto the route instead of trusting feature
+             properties: the source is one plain geometry. */
+          handler(distanceAlongRoute(geometry, [e.lngLat.lng, e.lngLat.lat]));
         });
       } catch {
         setBasemapFailed(true);
@@ -93,7 +112,7 @@ export function MapCanvas({
       mapRef.current = null;
       setMapLoaded(false);
     };
-  }, [onRouteClick, offline]);
+  }, [offline]);
 
   /* Markers */
   useEffect(() => {
@@ -130,37 +149,46 @@ export function MapCanvas({
     }
   }, [markers, mapLoaded]);
 
-  /* Route geometry */
+  /* Route geometry, coloured by terrain when the analysis is available */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
     if (!routeGeometry || routeGeometry.length < 2) {
-      removeLine(map, ROUTE_CASING_LAYER);
-      removeLine(map, ROUTE_CORE_LAYER);
-      removeLine(map, ROUTE_HIT_LAYER);
+      removeLayer(map, ROUTE_CASING_LAYER);
+      removeLayer(map, ROUTE_CORE_LAYER);
+      removeLayer(map, ROUTE_HIT_LAYER);
       return;
     }
 
-    const geojson: GeoJSON.LineString = {
+    const line: GeoJSON.LineString = {
       type: "LineString",
       coordinates: routeGeometry.map((p) => [p[0], p[1]]),
     };
 
-    upsertLine(map, ROUTE_CASING_LAYER, geojson, {
+    upsertLine(map, ROUTE_CASING_LAYER, line, {
       "line-color": "#ffffff",
       "line-width": 9,
       "line-opacity": 0.95,
     });
-    upsertLine(map, ROUTE_CORE_LAYER, geojson, {
-      "line-color": routeColor ?? "#0F766E",
-      "line-width": 5,
-    });
-    upsertLine(map, ROUTE_HIT_LAYER, geojson, {
+
+    if (terrain && terrain.length > 0) {
+      upsertLine(map, ROUTE_CORE_LAYER, buildTerrainFeatures(routeGeometry, terrain), {
+        "line-color": TERRAIN_COLOR_EXPRESSION,
+        "line-width": 5,
+      } as NonNullable<LineLayerSpecification["paint"]>);
+    } else {
+      upsertLine(map, ROUTE_CORE_LAYER, line, {
+        "line-color": ROUTE_NEUTRAL_COLOR,
+        "line-width": 5,
+      });
+    }
+
+    upsertLine(map, ROUTE_HIT_LAYER, line, {
       "line-color": "rgba(0,0,0,0)",
       "line-width": 26,
     });
-  }, [routeGeometry, routeColor, mapLoaded]);
+  }, [routeGeometry, terrain, mapLoaded]);
 
   /* Fit bounds on new geometry */
   useEffect(() => {
@@ -180,18 +208,40 @@ export function MapCanvas({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     if (!selectionGeometry || selectionGeometry.length < 2) {
-      removeLine(map, ROUTE_SELECTION_LAYER);
+      removeLayer(map, ROUTE_SELECTION_LAYER);
       return;
     }
-    const geojson: GeoJSON.LineString = {
-      type: "LineString",
-      coordinates: selectionGeometry.map((p) => [p[0], p[1]]),
-    };
-    upsertLine(map, ROUTE_SELECTION_LAYER, geojson, {
-      "line-color": "#C2410C",
-      "line-width": 8,
-    });
+    upsertLine(
+      map,
+      ROUTE_SELECTION_LAYER,
+      {
+        type: "LineString",
+        coordinates: selectionGeometry.map((p) => [p[0], p[1]]),
+      },
+      { "line-color": ROUTE_SELECTION_COLOR, "line-width": 8 },
+    );
   }, [selectionGeometry, mapLoaded]);
+
+  /* Chart cursor mirrored onto the route */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const point =
+      cursorDistanceMeters != null && routeGeometry && routeGeometry.length >= 2
+        ? positionAtDistance(routeGeometry, cursorDistanceMeters)
+        : null;
+
+    if (!point) {
+      removeLayer(map, ROUTE_CURSOR_LAYER);
+      return;
+    }
+
+    upsertCircle(map, ROUTE_CURSOR_LAYER, {
+      type: "Point",
+      coordinates: [point[0], point[1]],
+    });
+  }, [cursorDistanceMeters, routeGeometry, mapLoaded]);
 
   /* Keep the canvas in sync with container resizes */
   useEffect(() => {
@@ -205,41 +255,103 @@ export function MapCanvas({
   }, [basemapFailed]);
 
   return (
-    <div className={className ? `map-host ${className}` : "map-host"}>
+    <div
+      className={className ? `map-host ${className}` : "map-host"}
+      data-map-ready={mapLoaded ? "true" : "false"}
+      data-selection-points={selectionGeometry?.length ?? 0}
+    >
       <div className="map-container" ref={containerRef} />
       {offline && <MapFallback message={COPY.offlineMapUnavailable} />}
       {!offline && basemapFailed && <MapFallback message={COPY.errorBasemap} />}
       {!offline && !basemapFailed && (
-        <div className="attribution-line map-attribution" aria-hidden="true">
-          {BASEMAP_ATTRIBUTION}
-        </div>
+        <p className="attribution-line map-attribution">
+          {"© "}
+          <a href={BASEMAP_ATTRIBUTION_LINKS[0].href} target="_blank" rel="noreferrer">
+            {BASEMAP_ATTRIBUTION_LINKS[0].label}
+          </a>
+          {" contributors | "}
+          <a href={BASEMAP_ATTRIBUTION_LINKS[1].href} target="_blank" rel="noreferrer">
+            {BASEMAP_ATTRIBUTION_LINKS[1].label}
+          </a>
+        </p>
       )}
     </div>
   );
 }
 
+/** Position on the route at a travelled distance. */
+function positionAtDistance(
+  geometry: readonly Position[],
+  distanceMeters: number,
+): Position | null {
+  const cumulative = cumulativeDistances(geometry);
+  const total = cumulative[cumulative.length - 1] ?? 0;
+  const target = Math.max(0, Math.min(total, distanceMeters));
+
+  for (let i = 1; i < cumulative.length; i++) {
+    if (cumulative[i]! < target) continue;
+    const a = geometry[i - 1]!;
+    const b = geometry[i]!;
+    const span = cumulative[i]! - cumulative[i - 1]! || 1;
+    const t = (target - cumulative[i - 1]!) / span;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+  return geometry[geometry.length - 1] ?? null;
+}
+
 function upsertLine(
   map: import("maplibre-gl").Map,
   id: string,
-  geojson: GeoJSON.LineString,
+  data: GeoJSON.GeoJSON,
   paint: NonNullable<LineLayerSpecification["paint"]>,
 ) {
-  if (map.getSource(id)) {
-    (map.getSource(id) as unknown as { setData: (d: GeoJSON.GeoJSON) => void }).setData(geojson);
+  const source = map.getSource(id);
+  if (source) {
+    (source as unknown as { setData: (d: GeoJSON.GeoJSON) => void }).setData(data);
+    /* Paint too: the route line switches between terrain colours and one
+       neutral colour, and an existing layer keeps its old paint otherwise. */
+    if (map.getLayer(id)) {
+      for (const [property, value] of Object.entries(paint)) {
+        map.setPaintProperty(id, property, value);
+      }
+    }
     return;
   }
-  map.addSource(id, { type: "geojson", data: geojson });
-  const layerSpec: LineLayerSpecification = {
+  map.addSource(id, { type: "geojson", data });
+  map.addLayer({
     id,
     type: "line",
     source: id,
     paint,
     layout: { "line-cap": "round", "line-join": "round" },
-  };
-  map.addLayer(layerSpec);
+  } satisfies LineLayerSpecification);
 }
 
-function removeLine(map: import("maplibre-gl").Map, id: string) {
+function upsertCircle(
+  map: import("maplibre-gl").Map,
+  id: string,
+  data: GeoJSON.Point,
+) {
+  const source = map.getSource(id);
+  if (source) {
+    (source as unknown as { setData: (d: GeoJSON.GeoJSON) => void }).setData(data);
+    return;
+  }
+  map.addSource(id, { type: "geojson", data });
+  map.addLayer({
+    id,
+    type: "circle",
+    source: id,
+    paint: {
+      "circle-radius": 7,
+      "circle-color": "#ffffff",
+      "circle-stroke-color": ROUTE_SELECTION_COLOR,
+      "circle-stroke-width": 3,
+    },
+  } satisfies CircleLayerSpecification);
+}
+
+function removeLayer(map: import("maplibre-gl").Map, id: string) {
   if (map.getLayer(id)) map.removeLayer(id);
   if (map.getSource(id)) map.removeSource(id);
 }

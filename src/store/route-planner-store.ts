@@ -27,6 +27,19 @@ export interface MapPickerState {
   targetId: string | null;
 }
 
+/** Shape-index bounds of the ruas or corridor under review. */
+export interface ReviewSelection {
+  startShapeIndex: number;
+  endShapeIndex: number;
+  segmentIds: readonly string[];
+}
+
+/** Corridor bounds being picked. `null` means corridor mode is off. */
+export interface ReviewCorridor {
+  startShapeIndex: number | null;
+  endShapeIndex: number | null;
+}
+
 export interface ImagePreviewState {
   open: boolean;
   url: string | null;
@@ -54,6 +67,14 @@ export interface RoutePlannerState {
   roadSegments: RoadSegment[] | null;
   roadSegmentsLoading: boolean;
   roadMetadataError: string | null;
+  reviewSelection: ReviewSelection | null;
+  reviewCorridor: ReviewCorridor | null;
+
+  /* Distance along the route highlighted by the chart or a map tap */
+  chartCursorMeters: number | null;
+
+  /* Inline notice for the location controls (GPS permission, availability) */
+  locationNotice: string | null;
 
   /* View state */
   appView: AppView;
@@ -93,6 +114,10 @@ export interface RoutePlannerState {
   setRoadSegments: (segments: RoadSegment[] | null) => void;
   setRoadSegmentsLoading: (value: boolean) => void;
   setRoadMetadataError: (error: string | null) => void;
+  setReviewSelection: (selection: ReviewSelection | null) => void;
+  setReviewCorridor: (corridor: ReviewCorridor | null) => void;
+  setChartCursorMeters: (distanceMeters: number | null) => void;
+  setLocationNotice: (notice: string | null) => void;
 
   /* Actions — view state */
   setAppView: (view: AppView) => void;
@@ -127,6 +152,10 @@ const initialState = {
   roadSegments: null as RoadSegment[] | null,
   roadSegmentsLoading: false,
   roadMetadataError: null as string | null,
+  reviewSelection: null as ReviewSelection | null,
+  reviewCorridor: null as ReviewCorridor | null,
+  chartCursorMeters: null as number | null,
+  locationNotice: null as string | null,
   appView: "composer" as AppView,
   searchDialog: { open: false, targetId: null } as SearchDialogState,
   mapPicker: { open: false, targetId: null } as MapPickerState,
@@ -218,6 +247,9 @@ export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
       changesUnapplied: false,
       roadSegments: null,
       roadMetadataError: null,
+      reviewSelection: null,
+      reviewCorridor: null,
+      chartCursorMeters: null,
     }),
   setIsCalculating: (isCalculating) => set({ isCalculating }),
   setRouteError: (routeError) => set({ routeError }),
@@ -226,6 +258,10 @@ export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
   setRoadSegments: (roadSegments) => set({ roadSegments }),
   setRoadSegmentsLoading: (roadSegmentsLoading) => set({ roadSegmentsLoading }),
   setRoadMetadataError: (roadMetadataError) => set({ roadMetadataError }),
+  setReviewSelection: (reviewSelection) => set({ reviewSelection }),
+  setReviewCorridor: (reviewCorridor) => set({ reviewCorridor }),
+  setChartCursorMeters: (chartCursorMeters) => set({ chartCursorMeters }),
+  setLocationNotice: (locationNotice) => set({ locationNotice }),
 
   setAppView: (appView) => set({ appView }),
   setSearchDialog: (searchDialog) => set({ searchDialog }),

@@ -3,6 +3,7 @@ import type { ElevationSample } from "@/domain/route";
 import type { TerrainSection } from "@/domain/elevation";
 import { COPY } from "@/content/id";
 import { formatDistance, formatElevation } from "@/lib/format-id";
+import { TERRAIN_COLORS } from "@/features/map/map-layers";
 
 interface Props {
   samples: readonly ElevationSample[];
@@ -40,20 +41,25 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
     );
   }
 
-  const validElevations = samples
-    .filter((s) => s.elevationMeters !== null)
-    .map((s) => s.elevationMeters as number);
+  /* Reduced, not spread: a 500 km profile has tens of thousands of samples
+     and Math.min(...array) blows the argument limit. */
+  let minElev = Number.POSITIVE_INFINITY;
+  let maxElev = Number.NEGATIVE_INFINITY;
+  let validCount = 0;
+  for (const sample of samples) {
+    if (sample.elevationMeters === null) continue;
+    validCount++;
+    if (sample.elevationMeters < minElev) minElev = sample.elevationMeters;
+    if (sample.elevationMeters > maxElev) maxElev = sample.elevationMeters;
+  }
 
-  if (validElevations.length === 0) {
+  if (validCount === 0) {
     return (
       <div className="chart-empty" style={{ height }} ref={containerRef}>
         {COPY.elevationUnavailable}
       </div>
     );
   }
-
-  const minElev = Math.min(...validElevations);
-  const maxElev = Math.max(...validElevations);
   const elevRange = maxElev - minElev || 1;
   const maxDist = samples[samples.length - 1]!.distanceMeters || 1;
   const distScale = chartW / maxDist;
@@ -78,12 +84,7 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
   const terrainBands = terrain.map((section, idx) => {
     const x1 = toX(section.startDistanceMeters);
     const x2 = toX(section.endDistanceMeters);
-    const color =
-      section.classification === "climb"
-        ? "#D97706"
-        : section.classification === "descent"
-          ? "#2563EB"
-          : "#0F766E";
+    const color = TERRAIN_COLORS[section.classification ?? "flat"];
     return (
       <rect
         key={idx}
@@ -143,30 +144,46 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
     onCursorChange(dist);
   };
 
+  const cursorText = cursorSample
+    ? `${formatDistance(cursorSample.distanceMeters)} — ${
+        cursorSample.elevationMeters != null
+          ? formatElevation(cursorSample.elevationMeters)
+          : COPY.elevationUnavailable
+      }`
+    : COPY.elevationChartLabel;
+
+  /* Interactive: a slider along the route. Static: just a picture. */
+  const interactiveProps = onCursorChange
+    ? {
+        role: "slider",
+        tabIndex: 0,
+        "aria-label": COPY.elevationChartLabel,
+        "aria-valuemin": 0,
+        "aria-valuemax": Math.round(maxDist),
+        "aria-valuenow": Math.round(cursor ?? 0),
+        "aria-valuetext": cursorText,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const step = (e.key === "ArrowRight" ? 1 : -1) * Math.max(50, maxDist / 40);
+          onCursorChange(Math.max(0, Math.min(maxDist, (cursor ?? 0) + step)));
+        },
+        onClick: (e: React.MouseEvent) => handlePointer(e.clientX),
+        onPointerMove: (e: React.PointerEvent) => {
+          if (e.pointerType === "mouse" && e.buttons === 0) return;
+          handlePointer(e.clientX);
+        },
+      }
+    : { role: "img", "aria-label": COPY.elevationChartLabel };
+
   return (
     <div
       ref={containerRef}
       className="elevation-chart"
-      role="img"
-      aria-label={COPY.elevationChartLabel}
+      style={{ touchAction: "pan-y" }}
+      {...interactiveProps}
     >
-      <svg
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        onClick={(e) => handlePointer(e.clientX)}
-        onKeyDown={(e) => {
-          if (!onCursorChange) return;
-          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-            e.preventDefault();
-            const step = (e.key === "ArrowRight" ? 1 : -1) * 500;
-            const next = Math.max(0, Math.min(maxDist, (cursor ?? 0) + step));
-            onCursorChange(next);
-          }
-        }}
-        tabIndex={onCursorChange ? 0 : undefined}
-        style={{ touchAction: "pan-y" }}
-      >
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         {terrainBands}
         {yTicks}
         {segments.map((d, i) => (
@@ -174,7 +191,7 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
             key={i}
             d={d}
             fill="none"
-            stroke="#0F766E"
+            stroke={TERRAIN_COLORS.flat}
             strokeWidth={2.5}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -193,12 +210,12 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
         )}
         {xTickMarks}
       </svg>
+      {onCursorChange && !cursorSample && (
+        <p className="chart-hint">{COPY.elevationChartHint}</p>
+      )}
       {cursorSample && (
         <p className="chart-cursor-label" aria-live="polite">
-          {formatDistance(cursorSample.distanceMeters)} —{" "}
-          {cursorSample.elevationMeters != null
-            ? formatElevation(cursorSample.elevationMeters)
-            : COPY.elevationUnavailable}
+          {cursorText}
         </p>
       )}
     </div>

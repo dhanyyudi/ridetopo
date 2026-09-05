@@ -97,3 +97,12 @@ export function combinedElevationSamples(route: PlannedRoute): ElevationSample[]
   const legs = route.returnLeg ? [route.outbound, route.returnLeg] : [route.outbound];
   return mergeElevationSampleSets(legs);
 }
+
+/**
+ * Encoded shape of the whole planned route. Road review and avoidance work on
+ * the combined geometry — a round trip's return leg is part of the ride — so
+ * trace shape indices must address `route.geometry`.
+ */
+export function routeEncodedShape(route: PlannedRoute): string {
+  return encodePolyline6(route.geometry);
+}

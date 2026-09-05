@@ -32,14 +32,7 @@ export function buildExclusionLocations(
     combined.push(midpoint);
   }
 
-  if (combined.length <= maximum) {
-    return combined;
-  }
-
-  /* Deterministic even downsample to fit the remaining budget */
-  const step = Math.ceil(combined.length / maximum);
-  const sampled = combined.filter((_, i) => i % step === 0);
-  return sampled.slice(0, maximum);
+  return downsampleEvenly(combined, maximum);
 }
 
 /**
@@ -68,13 +61,41 @@ export function buildMultiEdgeExclusions(
     }
   }
 
-  if (combined.length <= maximum) {
-    return combined;
+  return downsampleEvenly(combined, maximum);
+}
+
+/**
+ * Merge new exclusion points into the active list, dropping near-duplicates
+ * and thinning the result evenly when it exceeds the server budget. Cutting
+ * the tail off instead would leave the far end of a corridor unavoided.
+ */
+export function mergeExclusionPositions(
+  existing: readonly Position[],
+  incoming: readonly Position[],
+  maximum: number = PRODUCT_LIMITS.maxExclusionLocations,
+): readonly Position[] {
+  if (maximum <= 0) return [];
+
+  const combined = [...existing];
+  for (const position of incoming) {
+    if (isNearExisting(position, combined)) continue;
+    combined.push(position);
   }
 
-  const step = Math.ceil(combined.length / maximum);
-  const sampled = combined.filter((_, i) => i % step === 0);
-  return sampled.slice(0, maximum);
+  return downsampleEvenly(combined, maximum);
+}
+
+function downsampleEvenly(
+  positions: readonly Position[],
+  maximum: number,
+): readonly Position[] {
+  if (positions.length <= maximum) return positions;
+  const step = positions.length / maximum;
+  const sampled: Position[] = [];
+  for (let i = 0; i < maximum; i++) {
+    sampled.push(positions[Math.min(positions.length - 1, Math.floor(i * step))]!);
+  }
+  return sampled;
 }
 
 function isNearExisting(position: Position, existing: readonly Position[]): boolean {

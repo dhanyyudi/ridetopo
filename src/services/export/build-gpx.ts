@@ -1,5 +1,5 @@
 import type { PlannedRoute, ElevationSample } from "@/domain/route";
-import { interpolateElevationAtDistance } from "@/domain/elevation";
+import { createElevationInterpolator } from "@/domain/elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import { combinedElevationSamples } from "@/services/routing/merge-legs";
 
@@ -36,12 +36,15 @@ function buildGpxContent(route: PlannedRoute): string {
   /* Distance profile over the combined geometry so elevation maps by
      cumulative distance, never by array index. */
   const cumulative = cumulativeDistances(geometry);
+  /* Cursor-based: both arrays advance together, so a 500 km route does not
+     rescan the elevation profile per vertex. */
+  const elevationAt = createElevationInterpolator(elevationProfile);
 
   let trkpts = "";
   for (let i = 0; i < geometry.length; i++) {
     const pt = geometry[i]!;
     const distanceAtPoint = cumulative[i] ?? 0;
-    const elevation = interpolateElevationAtDistance(elevationProfile, distanceAtPoint);
+    const elevation = elevationAt(distanceAtPoint);
     trkpts += `    <trkpt lat="${pt[1]}" lon="${pt[0]}">\n`;
     if (elevation !== null) {
       trkpts += `      <ele>${round5(elevation)}</ele>\n`;

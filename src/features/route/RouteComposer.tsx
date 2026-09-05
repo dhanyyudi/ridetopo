@@ -49,6 +49,10 @@ export function RouteComposer({ controller, offline }: Props) {
 
   const hasValidRoute = store.lastValidRoute !== null;
   const canPlan = store.locations.length >= 2 && !offline;
+  /* The round-trip toggle only makes sense once there is an A and a B. */
+  const hasEndpoints =
+    store.locations.some((l) => l.role === "origin" && l.position !== null) &&
+    store.locations.some((l) => l.role === "destination" && l.position !== null);
 
   return (
     <div className="composer">
@@ -68,12 +72,20 @@ export function RouteComposer({ controller, offline }: Props) {
           onReorder={handleReorder}
         />
 
-        <RoundTripControl
-          enabled={store.returnToStart}
-          mode={store.returnMode}
-          onToggle={(v) => controller.setPreference({ returnToStart: v })}
-          onModeChange={(m) => controller.setPreference({ returnMode: m })}
-        />
+        {store.locationNotice && (
+          <p className="inline-error" role="status">
+            {store.locationNotice}
+          </p>
+        )}
+
+        {hasEndpoints && (
+          <RoundTripControl
+            enabled={store.returnToStart}
+            mode={store.returnMode}
+            onToggle={(v) => controller.setPreference({ returnToStart: v })}
+            onModeChange={(m) => controller.setPreference({ returnMode: m })}
+          />
+        )}
 
         <section className="composer-section" aria-labelledby="profile-heading">
           <h2 id="profile-heading" className="section-title">
@@ -190,7 +202,7 @@ export function RouteComposer({ controller, offline }: Props) {
           ) : (
             <>
               <Navigation size={18} aria-hidden="true" />
-              {hasValidRoute ? COPY.planRoute : COPY.planRoute}
+              {COPY.planRoute}
             </>
           )}
         </button>

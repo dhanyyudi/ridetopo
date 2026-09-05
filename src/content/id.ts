@@ -35,6 +35,8 @@ export const COPY = {
   mapPickSave: "Simpan",
   mapPickCancel: "Batal",
   mapPickLabel: "Titik pilihan",
+  gpxWaypointFallback: "Titik",
+  gpxRoundTripOrigin: "Mulai/Selesai",
   incompleteLocations: "Lengkapi titik mulai dan tujuan terlebih dahulu.",
 
   /* Profiles */
@@ -44,7 +46,7 @@ export const COPY = {
   roadPreference: "Preferensi jalan",
   standardRoad: "Standard",
   smallRoads: "Jalan Kecil",
-  terrainPreference: "Preferensi tanjakan",
+  terrainPreference: "Preferensi medan",
   standardTerrain: "Standard",
   flatter: "Lebih Landai",
   roadPreferenceHelper: "Ini adalah preferensi. Gunakan “Tinjau ruas jalan” untuk menghindari bagian tertentu.",
@@ -93,6 +95,7 @@ export const COPY = {
   avoidanceFailed: "Ruas belum berhasil dihindari. Coba perpanjang area yang dipilih.",
   activeExclusions: "Jalan yang dihindari",
   removeExclusion: "Hapus hindaran",
+  exclusionLabel: "Hindaran",
   maxExclusionsReached: "Maksimal 50 lokasi hindaran.",
   metadataUnavailable: "Data jalan belum tersedia. Rute tetap dapat dilihat.",
   exitReview: "Selesai tinjau",
@@ -100,6 +103,7 @@ export const COPY = {
   corridorHint: "Pilih batas awal dan akhir area yang ingin dihindari.",
   corridorStart: "Tandai batas awal",
   corridorEnd: "Tandai batas akhir",
+  corridorRange: "Area yang dipilih",
 
   /* Road class explanations */
   roadClassMotorway: "Jalan tol/freeway dengan akses terbatas; umumnya tidak dapat dilalui sepeda.",
@@ -107,7 +111,8 @@ export const COPY = {
   roadClassPrimary: "Jalan utama penghubung kota atau kawasan penting.",
   roadClassSecondary: "Jalan penghubung regional atau antarkawasan.",
   roadClassTertiary: "Jalan penghubung lokal atau kolektor.",
-  roadClassUnclassified: "Jalan umum kecil yang tetap berfungsi sebagai jalan tembus.",
+  roadClassUnclassified:
+    "Jalan umum kecil yang tetap berfungsi sebagai jalan tembus; bukan berarti kelasnya tidak diketahui.",
   roadClassResidential: "Jalan lingkungan permukiman.",
   roadClassService: "Jalan akses menuju bangunan, parkir, atau fasilitas.",
   roadClassCycleway: "Jalur yang ditujukan untuk sepeda.",
@@ -163,7 +168,10 @@ export const COPY = {
   terrainClimb: "Menanjak",
   terrainFlat: "Landai",
   terrainDescent: "Menurun",
+  terrainLegendLabel: "Keterangan medan",
   elevationChartLabel: "Grafik elevasi rute",
+  elevationChartHint: "Geser atau gunakan panah kiri/kanan untuk menelusuri rute.",
+  elevationSectionTitle: "Profil elevasi",
 
   /* Privacy */
   privacyTitle: "Privasi",

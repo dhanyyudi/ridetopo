@@ -173,6 +173,20 @@ test.describe("route planning journey", () => {
     expect(metrics.scrollY).toBe(0);
   });
 
+  test("the result map shows an A and a B marker on the route", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page);
+    await page.goto("/");
+    await fillJourney(page);
+    await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
+    await page.waitForSelector("text=Hasil rute");
+
+    /* Every map function must also exist as a marker on the map itself. */
+    await expect(page.locator(".ridetopo-marker")).toHaveCount(2);
+    await expect(page.locator(".ridetopo-marker.marker-origin")).toBeVisible();
+    await expect(page.locator(".ridetopo-marker.marker-destination")).toBeVisible();
+  });
+
   test("a route through a waypoint reports every leg, not just the first", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     useWaypointResponse = true;

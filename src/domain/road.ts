@@ -1,4 +1,5 @@
 import type { RoadSegment } from "./route";
+import { COPY } from "@/content/id";
 
 export interface RoadSelection {
   startShapeIndex: number;
@@ -6,17 +7,18 @@ export interface RoadSelection {
   segmentIds: readonly string[];
 }
 
+/* Wording lives in the central copy module; this only maps class to string. */
 const ROAD_CLASS_DESCRIPTIONS: Record<RoadSegment["roadClass"], string> = {
-  motorway: "Jalan tol/freeway dengan akses terbatas; umumnya tidak dapat dilalui sepeda.",
-  trunk: "Jalan nasional utama non-tol.",
-  primary: "Jalan utama penghubung kota atau kawasan penting.",
-  secondary: "Jalan penghubung regional atau antarkawasan.",
-  tertiary: "Jalan penghubung lokal atau kolektor.",
-  unclassified: "Jalan umum kecil yang tetap berfungsi sebagai jalan tembus.",
-  residential: "Jalan lingkungan permukiman.",
-  service: "Jalan akses menuju bangunan, parkir, atau fasilitas.",
-  cycleway: "Jalur yang ditujukan untuk sepeda.",
-  other: "Jalan lainnya.",
+  motorway: COPY.roadClassMotorway,
+  trunk: COPY.roadClassTrunk,
+  primary: COPY.roadClassPrimary,
+  secondary: COPY.roadClassSecondary,
+  tertiary: COPY.roadClassTertiary,
+  unclassified: COPY.roadClassUnclassified,
+  residential: COPY.roadClassResidential,
+  service: COPY.roadClassService,
+  cycleway: COPY.roadClassCycleway,
+  other: COPY.roadClassOther,
 };
 
 const SURFACE_LABELS: Record<string, string> = {
@@ -30,9 +32,9 @@ const SURFACE_LABELS: Record<string, string> = {
   unpaved: "Tidak beraspal",
 };
 
-export const UNNAMED_FALLBACK = "Ruas tanpa nama — Jalan Lokal — Permukaan tidak diketahui";
-export const UNNAMED_ROAD_LABEL = "Ruas tanpa nama";
-export const SURFACE_UNKNOWN_LABEL = "Permukaan tidak diketahui";
+export const UNNAMED_ROAD_LABEL = COPY.unnamedRoad;
+export const SURFACE_UNKNOWN_LABEL = COPY.surfaceUnknown;
+export const LOCAL_ROAD_LABEL = COPY.roadClassLocal;
 
 export function getRoadDisplayName(segment: RoadSegment): string {
   return segment.name ?? UNNAMED_ROAD_LABEL;
