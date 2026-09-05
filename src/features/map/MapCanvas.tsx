@@ -259,6 +259,7 @@ export function MapCanvas({
       className={className ? `map-host ${className}` : "map-host"}
       data-map-ready={mapLoaded ? "true" : "false"}
       data-selection-points={selectionGeometry?.length ?? 0}
+      data-cursor-distance={cursorDistanceMeters ?? ""}
     >
       <div className="map-container" ref={containerRef} />
       {offline && <MapFallback message={COPY.offlineMapUnavailable} />}

@@ -23,8 +23,10 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean): RefObject<
         (element) => element.getClientRects().length > 0,
       );
 
-    /* Move focus in on the next frame: dialogs mount their controls first. */
+    /* Move focus in on the next frame, unless the dialog has already chosen
+       where focus belongs — a search field beats the close button. */
     const frame = requestAnimationFrame(() => {
+      if (container.contains(document.activeElement)) return;
       const [first] = focusable();
       (first ?? container).focus();
     });

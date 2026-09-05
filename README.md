@@ -12,11 +12,11 @@ P0 telah diimplementasikan secara lengkap pada branch lokal
 `fix/audit-remediation-2026-09`. Audit menyeluruh 5 September 2026
 menemukan dan menutup lima temuan blocker serta sepuluh temuan major,
 masing-masing dengan tes regresi. Seluruh perjalanan pengguna terbukti
-lewat 190 tes unit/integrasi dan 33 kasus E2E yang dimock di Chromium.
+lewat 190 tes unit/integrasi dan 105 tes E2E (35 kasus × Chromium,
+Firefox, WebKit).
 
 **Belum production-ready.** Yang masih terbuka: QA perangkat Android dan
-iOS, pengukuran LCP/INP/CLS di perangkat nyata, dan menjalankan ulang
-matriks E2E di Firefox serta WebKit. Lihat
+iOS, serta pengukuran LCP/INP/CLS di perangkat nyata. Lihat
 [audit/implementation-evidence.md](./audit/implementation-evidence.md)
 untuk detail lengkap.
 

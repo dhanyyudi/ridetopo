@@ -187,6 +187,43 @@ test.describe("route planning journey", () => {
     await expect(page.locator(".ridetopo-marker.marker-destination")).toBeVisible();
   });
 
+  test("the elevation chart is a keyboard slider the map mirrors", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page);
+    await page.goto("/");
+    await fillJourney(page);
+    await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
+    await page.waitForSelector("text=Hasil rute");
+
+    const slider = page.getByRole("slider", { name: /Grafik elevasi/ });
+    await expect(slider).toBeVisible();
+    await slider.focus();
+    await slider.press("ArrowRight");
+
+    /* The readout names distance and elevation — terrain is never read from
+       colour alone — and the map marks the same point. */
+    await expect(page.locator(".chart-cursor-label")).toContainText("km");
+    await expect
+      .poll(async () =>
+        Number((await page.locator(".map-host").getAttribute("data-cursor-distance")) || 0),
+      )
+      .toBeGreaterThan(0);
+  });
+
+  test("the terrain legend names every band", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockProviders(page);
+    await page.goto("/");
+    await fillJourney(page);
+    await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
+    await page.waitForSelector("text=Hasil rute");
+
+    const legend = page.getByRole("list", { name: /Keterangan medan/ });
+    await expect(legend).toContainText("Menanjak");
+    await expect(legend).toContainText("Landai");
+    await expect(legend).toContainText("Menurun");
+  });
+
   test("a route through a waypoint reports every leg, not just the first", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     useWaypointResponse = true;

@@ -11,7 +11,7 @@ P0 diimplementasikan penuh dan diaudit tiga kali. Audit 5 September 2026
 menemukan lima temuan blocker dan sepuluh temuan major yang **lolos dari
 seluruh gate otomatis** karena setiap fixture dan mock hanya mewakili satu
 bentuk respons. Semuanya sudah diperbaiki beserta tes regresinya; jumlah tes
-naik dari 131 menjadi 190 unit/integrasi dan dari 29 menjadi 33 kasus E2E.
+naik dari 131 menjadi 190 unit/integrasi dan dari 29 menjadi 35 kasus E2E.
 
 Blocker eksternal yang tersisa berada di sisi verifikasi perangkat nyata dan
 satu kontrak live yang belum bisa dibuktikan dari sisi frontend.
@@ -26,14 +26,23 @@ satu kontrak live yang belum bisa dibuktikan dari sisi frontend.
 | `npm run test` | 0 | 18 file, **190 tes** |
 | `npm run build` | 0 | dist statis, tanpa source map |
 | `npm run verify:build` | 0 | 41 pemeriksaan lolos |
-| `npm run test:e2e` (Chromium) | 0 | **33 kasus** |
+| `npm run test:e2e` | 0 | **105 tes: 35 kasus × 3 browser** |
 | `npm audit --omit=dev --audit-level=high` | 0 | 0 kerentanan produksi |
 | `npm audit --audit-level=critical` | 0 | lolos; satu *high* di dev tree (`fast-uri`) |
 | `git log --all --name-only` | — | tidak ada `plan/`, `.superpowers/`, `.env`, kredensial |
 
-Firefox dan WebKit **tidak dijalankan ulang** pada 5 September: browser
-Playwright untuk keduanya tidak terpasang di mesin audit. Matriks tiga-browser
-dari 22 Agustus tidak dapat direproduksi dan karena itu tidak diklaim ulang.
+## Matriks Browser E2E (5 September 2026)
+
+| Kasus | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| route-planning (8) | pass | pass | pass |
+| round-trip (4) | pass | pass | pass |
+| road-review (4) | pass | pass | pass |
+| offline-export (2) | pass | pass | pass |
+| accessibility (10, termasuk axe) | pass | pass | pass |
+| screenshots (7) | pass | pass | pass |
+
+Axe dijalankan terhadap composer; tidak ada pelanggaran serious/critical.
 
 ## Audit 5 September 2026 — temuan dan perbaikan
 
@@ -131,14 +140,12 @@ production.
    Screen belum dijalankan; tidak ditandai sebagai lolos.
 2. **Kinerja lapangan**: metrik LCP/INP/CLS pada perangkat Android kelas
    menengah belum diukur.
-3. **Matriks tiga browser**: hanya Chromium yang dijalankan pada 5 September.
-   Firefox dan WebKit perlu dijalankan ulang sebelum rilis.
-4. **Bentuk `alternates` live belum dikonfirmasi dari parser.** Parser kini
+3. **Bentuk `alternates` live belum dikonfirmasi dari parser.** Parser kini
    menerima kedua bentuk yang pernah dikirim Valhalla (pembungkus `trip` di
    level atas respons, dan daftar bersarang di dalam `trip`), sehingga mode
    *Lewat jalan lain* tidak lagi bergantung pada satu tebakan. Satu respons
    live yang disimpan dan dibandingkan tetap disarankan sebelum rilis.
-5. **Penyimpangan minor yang diketahui**:
+4. **Penyimpangan minor yang diketahui**:
    - Dokumen plan/PRD masih menyebut shape cost-factor terbalik; implementasi
      searah rute adalah yang benar per kontrak live. `plan/` bersifat
      read-only, jadi koreksi dokumen menunggu keputusan pemilik produk.
@@ -146,7 +153,7 @@ production.
      tanpa `unsafe-eval` dan tanpa wildcard.
    - Satu advisory *high* (`fast-uri`) berada di dependency pengembangan;
      gate produksi tetap nol kerentanan.
-6. **Catatan infra**: perbaikan CORS berada di file override NPM
+5. **Catatan infra**: perbaikan CORS berada di file override NPM
    (`/data/nginx/custom/server_proxy.conf`). Regenerasi total konfigurasi NPM
    di masa depan harus memastikan file ini masih ada.
 

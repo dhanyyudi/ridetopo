@@ -28,8 +28,9 @@ export function LocationSearchDialog({ open, onClose, onSelect, onSearch, offlin
       setQuery("");
       setResults([]);
       setError(null);
-      const t = setTimeout(() => inputRef.current?.focus(), 60);
-      return () => clearTimeout(t);
+      /* Focus the field the dialog exists for, before the trap looks. */
+      inputRef.current?.focus();
+      return undefined;
     }
     abortRef.current?.abort();
     return undefined;
