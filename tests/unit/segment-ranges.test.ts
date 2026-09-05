@@ -153,7 +153,7 @@ describe("buildTerrainFeatures", () => {
   it("covers the route to its last vertex", () => {
     const total = 0.01 * 111_320;
     const features = buildTerrainFeatures(geometry, [section(0, total, "flat")]).features;
-    expect(features[0]!.geometry.coordinates.at(-1)).toEqual([
+    expect(features.at(-1)!.geometry.coordinates.at(-1)).toEqual([
       geometry.at(-1)![0],
       geometry.at(-1)![1],
     ]);
@@ -162,7 +162,46 @@ describe("buildTerrainFeatures", () => {
   it("falls back to one neutral line when nothing is classified", () => {
     const features = buildTerrainFeatures(geometry, [section(0, 100, null)]).features;
     expect(features).toHaveLength(1);
-    expect(features[0]!.properties.terrain).toBe("flat");
+    expect(features[0]!.properties.terrain).toBe("unknown");
+  });
+
+  it("never paints an unmeasured tail as the section before it", () => {
+    const total = 0.01 * 111_320;
+    /* The profile ran out at the halfway point: the rest was never classified
+       and must not inherit the climb. */
+    const features = buildTerrainFeatures(geometry, [
+      section(0, total / 2, "climb"),
+    ]).features;
+
+    expect(features.map((f) => f.properties.terrain)).toEqual(["climb", "unknown"]);
+    expect(features.at(-1)!.geometry.coordinates.at(-1)).toEqual([
+      geometry.at(-1)![0],
+      geometry.at(-1)![1],
+    ]);
+  });
+
+  it("marks an unmeasured head as unknown too", () => {
+    const total = 0.01 * 111_320;
+    const features = buildTerrainFeatures(geometry, [
+      section(total / 2, total, "descent"),
+    ]).features;
+
+    expect(features.map((f) => f.properties.terrain)).toEqual(["unknown", "descent"]);
+    expect(features[0]!.geometry.coordinates[0]).toEqual([geometry[0]![0], geometry[0]![1]]);
+  });
+
+  it("still leaves no gap between the spans it draws", () => {
+    const total = 0.01 * 111_320;
+    const features = buildTerrainFeatures(geometry, [
+      section(0, total / 3, "climb"),
+      section((total * 2) / 3, total, "descent"),
+    ]).features;
+
+    for (let i = 1; i < features.length; i++) {
+      expect(features[i]!.geometry.coordinates[0]).toEqual(
+        features[i - 1]!.geometry.coordinates.at(-1),
+      );
+    }
   });
 
   it("emits nothing for a degenerate route", () => {

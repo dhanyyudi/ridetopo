@@ -58,10 +58,9 @@ export function coversRoute(
   if (routeDistanceMeters <= 0) return true;
   const last = samples[samples.length - 1];
   if (!last) return false;
-  const tolerance = Math.max(
-    ELEVATION_CONFIG.intervalMeters * 2,
-    routeDistanceMeters * 0.01,
-  );
+  /* Fixed, not proportional: the profile is sampled at a fixed interval, so
+     the only honest slack is one missing sample plus rounding. */
+  const tolerance = ELEVATION_CONFIG.intervalMeters * 2;
   return routeDistanceMeters - last.distanceMeters <= tolerance;
 }
 

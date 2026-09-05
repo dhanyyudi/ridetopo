@@ -21,5 +21,6 @@ jobs:
       - run: npm run test
       - run: npm run build
       - run: npm run verify:build
-      - run: npm run test:e2e
+      # Firefox with WebGL cannot run on this runner; see playwright.config.ts.
+      - run: npm run test:e2e:ci
       - run: npm run audit:security

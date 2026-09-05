@@ -7,15 +7,14 @@ const isCI = Boolean(process.env.CI);
 /** Only the no-WebGL project runs the degradation journey. */
 const DEGRADATION_SPEC = /degradation\.spec\.ts/;
 
-/* Headless Firefox on a GPU-less runner ships without WebGL, so MapLibre
-   never initialises and every map journey times out. Force the software
-   backend on so the matrix exercises the real app. */
-const FIREFOX_WEBGL_PREFS = {
-  "webgl.disabled": false,
-  "webgl.force-enabled": true,
-  "gfx.webrender.all": true,
-  "layers.acceleration.force-enabled": true,
-};
+/*
+ * Headless Firefox on GitHub's GPU-less runner cannot give MapLibre a WebGL
+ * context, and forcing the software backend through user prefs does not
+ * change that — every map journey still times out waiting for a map that
+ * never loads. So the `firefox` project is a local and pre-release gate, not
+ * a CI gate: `npm run test:e2e:ci` runs the projects the runner can actually
+ * execute, and `npm run test:e2e` runs the whole matrix here.
+ */
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -37,10 +36,7 @@ export default defineConfig({
     {
       name: "firefox",
       testIgnore: DEGRADATION_SPEC,
-      use: {
-        ...devices["Desktop Firefox"],
-        launchOptions: { firefoxUserPrefs: FIREFOX_WEBGL_PREFS },
-      },
+      use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",

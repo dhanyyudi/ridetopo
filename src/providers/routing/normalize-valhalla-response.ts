@@ -129,7 +129,10 @@ export function buildElevationSamples(
      stays valid and elevation simply becomes unavailable, so return no
      samples instead of rejecting the whole response. */
   const arraySpan = (raw.length - 1) * interval;
-  const tolerance = Math.max(interval * 2, legLengthMeters * 0.01);
+  /* One missing sample plus rounding — never a share of route length. A
+     percentage would scale with the route and let a 500 km ride lose five
+     kilometres of profile while still reporting route totals. */
+  const tolerance = interval * 2;
   if (Math.abs(arraySpan - legLengthMeters) > tolerance) {
     return [];
   }

@@ -18,7 +18,10 @@ export const TERRAIN_COLORS: Record<TerrainClass, string> = {
 export const ROUTE_NEUTRAL_COLOR = TERRAIN_COLORS.flat;
 export const ROUTE_SELECTION_COLOR = "#C2410C";
 
-/** Data-driven colour so one source carries every terrain section. */
+/** Spans the elevation profile could not classify. */
+export const TERRAIN_UNKNOWN = "unknown";
+
+/** Data-driven colour; anything unclassified falls through to neutral. */
 export const TERRAIN_COLOR_EXPRESSION = [
   "match",
   ["get", "terrain"],
@@ -50,9 +53,12 @@ function feature(
 
 /**
  * Split the route into one LineString per terrain section so the map can show
- * climbs, flats, and descents. Neighbouring sections share their boundary
- * vertex, so the drawn line stays continuous. The classification travels as a
- * feature property; the legend supplies the words.
+ * climbs, flats, and descents.
+ *
+ * Stretches the profile could not classify — a gap in the elevation data, or
+ * the tail of a partial profile — are emitted as their own neutral spans.
+ * Extending the last classified section to the end of the route instead would
+ * paint an unknown tail as a climb or a descent it was never measured to be.
  */
 export function buildTerrainFeatures(
   geometry: readonly Position[],
@@ -64,36 +70,44 @@ export function buildTerrainFeatures(
 
   const classified = terrain.filter((section) => section.classification !== null);
   if (classified.length === 0) {
-    return { type: "FeatureCollection", features: [feature(geometry, "flat")] };
+    return { type: "FeatureCollection", features: [feature(geometry, TERRAIN_UNKNOWN)] };
   }
 
   const cumulative = cumulativeDistances(geometry);
   const lastIndex = geometry.length - 1;
   const features: GeoJSON.Feature<GeoJSON.LineString, { terrain: string }>[] = [];
 
+  /* Sections arrive in order, so one walking cursor resolves every bound. */
+  let indexCursor = 0;
+  const indexAtDistance = (distanceMeters: number): number => {
+    while (indexCursor < lastIndex && cumulative[indexCursor + 1]! <= distanceMeters) {
+      indexCursor++;
+    }
+    return indexCursor;
+  };
+
+  const pushSpan = (from: number, to: number, classification: string) => {
+    if (to <= from) return;
+    const coordinates = geometry.slice(from, to + 1);
+    if (coordinates.length >= 2) features.push(feature(coordinates, classification));
+  };
+
   let cursor = 0;
-  for (let s = 0; s < classified.length; s++) {
-    const section = classified[s]!;
-    const isLast = s === classified.length - 1;
+  for (const section of classified) {
+    const start = indexAtDistance(section.startDistanceMeters);
+    const end = indexAtDistance(section.endDistanceMeters);
 
-    let endIndex = cursor;
-    while (endIndex < lastIndex && cumulative[endIndex + 1]! <= section.endDistanceMeters) {
-      endIndex++;
-    }
-    if (isLast) endIndex = lastIndex;
-    if (endIndex <= cursor) endIndex = Math.min(cursor + 1, lastIndex);
-
-    const coordinates = geometry.slice(cursor, endIndex + 1);
-    if (coordinates.length >= 2) {
-      features.push(feature(coordinates, section.classification!));
-    }
-
-    cursor = endIndex;
-    if (cursor >= lastIndex) break;
+    /* Anything before this section was never classified. */
+    pushSpan(cursor, start, TERRAIN_UNKNOWN);
+    pushSpan(Math.max(cursor, start), end, section.classification!);
+    cursor = Math.max(cursor, end);
   }
 
+  /* And the tail, when the profile ran out before the route did. */
+  pushSpan(cursor, lastIndex, TERRAIN_UNKNOWN);
+
   if (features.length === 0) {
-    return { type: "FeatureCollection", features: [feature(geometry, "flat")] };
+    return { type: "FeatureCollection", features: [feature(geometry, TERRAIN_UNKNOWN)] };
   }
 
   return { type: "FeatureCollection", features };

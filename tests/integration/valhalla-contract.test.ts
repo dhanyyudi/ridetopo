@@ -162,6 +162,14 @@ describe("Valhalla response normalization", () => {
     expect(buildElevationSamples(elevation, 30, 14_600)).toEqual([]);
   });
 
+  it("drops a long-route profile that stops short, however small the share", () => {
+    /* 500 km at 30 m, but the profile ends five kilometres early. A
+       percentage tolerance would have waved this through. */
+    const covered = 495_000;
+    const elevation = Array.from({ length: covered / 30 + 1 }, () => 10);
+    expect(buildElevationSamples(elevation, 30, 500_000)).toEqual([]);
+  });
+
   it("keeps an array whose span matches the leg within tolerance", () => {
     const elevation = Array.from({ length: 299 }, () => 10);
     expect(buildElevationSamples(elevation, 30, 8937)).toHaveLength(299);
