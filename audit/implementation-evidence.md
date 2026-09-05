@@ -128,8 +128,8 @@ searah rute>, factor: 5}`, dan `units: kilometers` di level atas maupun di
 
 ## Verifikasi Kontrak Live (read-only, 5 September 2026)
 
-Valhalla `3.7.0-680c8f2b7`, tileset terakhir dimutakhirkan 8 Agustus 2026.
-Seluruh pemeriksaan hanya membaca; tidak ada mutasi homeserver.
+Dijalankan terhadap Valhalla 3.7.x di homeserver. Seluruh pemeriksaan hanya
+membaca; tidak ada mutasi homeserver.
 
 | Pemeriksaan | Hasil |
 |---|---|
