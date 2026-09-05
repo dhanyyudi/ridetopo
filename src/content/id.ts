@@ -4,11 +4,8 @@ export const COPY = {
 
   /* Navigation */
   navComposer: "Rencanakan rute",
-  navResult: "Hasil rute",
-  navRoadReview: "Tinjau ruas jalan",
   navPrivacy: "Privasi",
   navAbout: "Tentang",
-  navBack: "Kembali",
 
   /* Composer */
   startPoint: "Titik mulai",
@@ -37,7 +34,6 @@ export const COPY = {
   mapPickLabel: "Titik pilihan",
   gpxWaypointFallback: "Titik",
   gpxRoundTripOrigin: "Mulai/Selesai",
-  incompleteLocations: "Lengkapi titik mulai dan tujuan terlebih dahulu.",
 
   /* Profiles */
   profileLabel: "Jenis sepeda",
@@ -54,7 +50,6 @@ export const COPY = {
 
   /* Round trip */
   returnToStart: "Kembali ke titik awal",
-  returnToStartShort: "Kembali ke A",
   returnMode: "Rute pulang",
   returnDifferentRoad: "Lewat jalan lain",
   returnFastest: "Pulang tercepat",
@@ -65,7 +60,6 @@ export const COPY = {
     "Pilihan jalan pulang alternatif terbatas di area ini. Beberapa ruas tetap digunakan kembali.",
   startAndEnd: "Titik mulai dan selesai",
   turnaround: "Tujuan / titik putar",
-  findingReturn: "Mencari jalan pulang…",
 
   /* Route result */
   routeDistance: "Jarak",
@@ -75,7 +69,6 @@ export const COPY = {
   elevationLoss: "Elevasi turun",
   elevationUnavailable: "Data elevasi belum tersedia untuk rute ini.",
   roadReview: "Tinjau ruas jalan",
-  exportGpx: "GPX",
   shareImage: "Bagikan gambar",
   downloadImage: "Unduh PNG",
   resultTitle: "Hasil rute",
@@ -84,12 +77,9 @@ export const COPY = {
   /* Road review */
   roadReviewTitle: "Tinjau ruas jalan",
   unnamedRoad: "Ruas tanpa nama",
-  roadClassLocal: "Jalan Lokal",
   surfaceUnknown: "Permukaan tidak diketahui",
   avoidRoad: "Hindari ruas ini",
   extendArea: "Perpanjang area",
-  extendStart: "Batas awal",
-  extendEnd: "Batas akhir",
   applyAvoidance: "Terapkan",
   cancelAvoidance: "Batal",
   avoidanceFailed: "Ruas belum berhasil dihindari. Coba perpanjang area yang dipilih.",
@@ -122,7 +112,6 @@ export const COPY = {
   /* Export */
   exportTitle: "Ekspor rute",
   gpxDownload: "Unduh GPX",
-  gpxSuccess: "GPX berhasil dibuat.",
   imagePreview: "Pratinjau gambar",
   shareSheet: "Bagikan gambar",
   imagePrivacyWarning: "Gambar rute dapat memperlihatkan lokasi awal dan tujuan.",
@@ -162,7 +151,6 @@ export const COPY = {
   loading: "Memuat...",
   calculating: "Menghitung rute…",
   reload: "Muat ulang",
-  tryAgain: "Coba lagi",
 
   /* Terrain */
   terrainClimb: "Menanjak",
@@ -195,19 +183,6 @@ Font: Plus Jakarta Sans (SIL Open Font License)
 
 Lisensi: AGPL-3.0`,
 
-  /* Limits */
-  maxWaypoints: "Maksimal 20 titik antara.",
-  maxDistance: "Maksimal total rute 500 km.",
-  maxExclusions: "Maksimal 50 lokasi hindaran.",
-
-  /* Units */
-  km: "km",
-  m: "m",
-  hours: "jam",
-  minutes: "mnt",
-
-  /* Format helpers */
-  kilometersSuffix: "km",
 } as const;
 
 export function formatDistance(meters: number): string {

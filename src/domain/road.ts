@@ -34,7 +34,6 @@ const SURFACE_LABELS: Record<string, string> = {
 
 export const UNNAMED_ROAD_LABEL = COPY.unnamedRoad;
 export const SURFACE_UNKNOWN_LABEL = COPY.surfaceUnknown;
-export const LOCAL_ROAD_LABEL = COPY.roadClassLocal;
 
 export function getRoadDisplayName(segment: RoadSegment): string {
   return segment.name ?? UNNAMED_ROAD_LABEL;
@@ -47,4 +46,18 @@ export function getRoadClassDescription(segment: RoadSegment): string {
 export function getSurfaceLabel(segment: RoadSegment): string | null {
   if (!segment.surface) return SURFACE_UNKNOWN_LABEL;
   return SURFACE_LABELS[segment.surface] ?? segment.surface;
+}
+
+/** True when the trace gave us nothing usable about this ruas. */
+export function hasNoMetadata(segment: RoadSegment): boolean {
+  return segment.name === null && segment.roadClass === "other" && !segment.surface;
+}
+
+/**
+ * Class and surface for one ruas, or the single agreed fallback line when the
+ * trace returned no metadata at all.
+ */
+export function getRoadDescriptor(segment: RoadSegment): string {
+  if (hasNoMetadata(segment)) return COPY.unnamedFallback;
+  return `${getRoadClassDescription(segment)} · ${getSurfaceLabel(segment)}`;
 }

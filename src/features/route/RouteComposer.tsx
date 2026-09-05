@@ -174,6 +174,11 @@ export function RouteComposer({ controller, offline }: Props) {
             {store.routeError}
           </p>
         )}
+        {offline && (
+          <p className="inline-hint" role="status">
+            {COPY.offlineRouteDisabled}
+          </p>
+        )}
         {store.changesUnapplied && !store.routeError && (
           <p className="inline-hint" role="status">
             {COPY.unappliedChanges}

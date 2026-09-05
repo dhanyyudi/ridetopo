@@ -2,6 +2,7 @@ import type { PlannedRoute, ElevationSample } from "@/domain/route";
 import { createElevationInterpolator } from "@/domain/elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import { combinedElevationSamples } from "@/services/routing/merge-legs";
+import { COPY } from "@/content/id";
 
 function escapeXml(s: string): string {
   return s
@@ -56,8 +57,8 @@ function buildGpxContent(route: PlannedRoute): string {
   for (const loc of route.input.locations) {
     const isRoundTripOrigin = route.input.returnToStart && loc.role === "origin";
     const wptLabel = isRoundTripOrigin
-      ? "Mulai/Selesai"
-      : escapeXml(loc.label || "Titik");
+      ? COPY.gpxRoundTripOrigin
+      : escapeXml(loc.label || COPY.gpxWaypointFallback);
     wpts += `  <wpt lat="${loc.position[1]}" lon="${loc.position[0]}">\n`;
     wpts += `    <name>${wptLabel}</name>\n`;
     wpts += "  </wpt>\n";

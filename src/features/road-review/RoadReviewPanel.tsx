@@ -3,8 +3,9 @@ import { COPY } from "@/content/id";
 import { useRoutePlannerStore } from "@/store/route-planner-store";
 import type { useRoutePlannerController } from "@/features/route/use-route-planner-controller";
 import type { RoadSegment } from "@/domain/route";
+import { PRODUCT_LIMITS } from "@/domain/route";
 import type { Position } from "@/domain/geo";
-import { getRoadDisplayName, getRoadClassDescription, getSurfaceLabel } from "@/domain/road";
+import { getRoadDisplayName, getRoadDescriptor } from "@/domain/road";
 import { formatDistance } from "@/lib/format-id";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import { buildMultiEdgeExclusions } from "@/services/avoidance/build-exclusions";
@@ -226,10 +227,12 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
                 className={`segment-item ${isSelected ? "selected" : ""}`}
                 onClick={() => (corridorMode ? markBoundary(seg.id) : handleSelect(seg))}
               >
-                <span className="segment-item-name">{getRoadDisplayName(seg)}</span>
+                <span className="segment-item-name">
+                  {getRoadDisplayName(seg)}
+                </span>
                 <span className="segment-item-detail">
                   {formatDistance(range?.startMeters ?? 0)}–{formatDistance(range?.endMeters ?? 0)} ·{" "}
-                  {getRoadClassDescription(seg)} · {getSurfaceLabel(seg)}
+                  {getRoadDescriptor(seg)}
                 </span>
               </button>
             );
@@ -262,7 +265,7 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
               <div className="segment-detail-meta">
                 {formatDistance(rangeById.get(selected.id)?.startMeters ?? 0)}–
                 {formatDistance(rangeById.get(selected.id)?.endMeters ?? 0)} ·{" "}
-                {getRoadClassDescription(selected)} · {getSurfaceLabel(selected)}
+                {getRoadDescriptor(selected)}
               </div>
             </div>
             <div className="segment-detail-actions">
@@ -299,6 +302,9 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
             <h2 id="exclusions-heading" className="section-title">
               {COPY.activeExclusions}
             </h2>
+            {store.activeExclusions.length >= PRODUCT_LIMITS.maxExclusionLocations && (
+              <p className="inline-hint">{COPY.maxExclusionsReached}</p>
+            )}
             <div className="exclusion-list">
               {store.activeExclusions.map((ex) => (
                 <div key={ex.id} className="exclusion-item">

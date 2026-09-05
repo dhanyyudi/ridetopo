@@ -2,6 +2,7 @@ import type { GeocodingProvider, GeocodingResult } from "@/providers/contracts";
 import { getRuntimeConfig } from "@/config/runtime-config";
 import { abortableFetch } from "@/lib/abortable-request";
 import { PRODUCT_LIMITS } from "@/domain/route";
+import { createRateLimiter } from "@/lib/throttle";
 
 const MAX_CACHED_QUERIES = 20;
 
@@ -24,7 +25,7 @@ export function createNominatimProvider(): GeocodingProvider {
      one tab cannot exceed the one-request-per-second usage policy even when
      two searches are submitted in the same second. */
   const cache = new Map<string, readonly GeocodingResult[]>();
-  let nextSlot = 0;
+  const waitForSlot = createRateLimiter(PRODUCT_LIMITS.nominatimMinIntervalMs);
 
   return {
     async search(query: string, signal: AbortSignal): Promise<readonly GeocodingResult[]> {
@@ -39,14 +40,7 @@ export function createNominatimProvider(): GeocodingProvider {
       const cached = cache.get(key);
       if (cached) return cached;
 
-      /* Claim the next free slot before awaiting, so concurrent searches
-         queue instead of firing together once their waits elapse. */
-      const now = Date.now();
-      const slot = Math.max(now, nextSlot);
-      nextSlot = slot + PRODUCT_LIMITS.nominatimMinIntervalMs;
-      if (slot > now) {
-        await new Promise((resolve) => setTimeout(resolve, slot - now));
-      }
+      await waitForSlot();
       if (signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }

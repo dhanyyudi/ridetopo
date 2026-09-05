@@ -477,18 +477,18 @@ export function useRoutePlannerController() {
     const route = state.lastValidRoute;
     if (!route) return;
 
-    void import("@/services/export/build-gpx").then(({ generateGpxBlob, generateGpxFilename }) => {
-      const blob = generateGpxBlob(route);
-      const filename = generateGpxFilename(route);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
+    void (async () => {
+      try {
+        const { generateGpxBlob, generateGpxFilename } = await import(
+          "@/services/export/build-gpx"
+        );
+        const { triggerDownload } = await import("@/services/export/share-route-card");
+        triggerDownload(generateGpxBlob(route), generateGpxFilename(route));
+      } catch {
+        /* A failed export must leave the route untouched. */
+        useRoutePlannerStore.getState().setRouteError(COPY.errorExport);
+      }
+    })();
   }, []);
 
   const prepareImage = useCallback(async (): Promise<void> => {

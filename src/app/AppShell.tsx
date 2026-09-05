@@ -38,7 +38,7 @@ export function AppShell({ offline, onNavigate, activeView, children }: Props) {
       />
       {offline && (
         <div className="offline-banner" role="status">
-          {COPY.offlineBanner}
+          {COPY.offlineBanner} {COPY.offlineExportAvailable}
         </div>
       )}
       <main className="app-main">{children}</main>

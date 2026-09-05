@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { COPY } from "@/content/id";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import type { Position } from "@/domain/geo";
 import { getBasemapStyleUrl } from "@/providers/basemap/open-free-map-provider";
 import { MapFallback } from "@/features/map/MapFallback";
@@ -19,6 +20,7 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const markerRef = useRef<import("maplibre-gl").Marker | null>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const [candidate, setCandidate] = useState<Position | null>(null);
   const [mapError, setMapError] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -99,7 +101,14 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
   if (!open) return null;
 
   return createPortal(
-    <div className="map-picker" role="dialog" aria-modal="true" aria-label={COPY.mapPickTitle}>
+    <div
+      ref={dialogRef}
+      tabIndex={-1}
+      className="map-picker"
+      role="dialog"
+      aria-modal="true"
+      aria-label={COPY.mapPickTitle}
+    >
       <div className="map-picker-header">
         <h2 className="map-picker-title">{COPY.mapPickTitle}</h2>
         <p className="map-picker-hint">{COPY.mapPickHint}</p>

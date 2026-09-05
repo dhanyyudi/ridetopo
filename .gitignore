@@ -53,3 +53,8 @@ Thumbs.db
 playwright-report/
 test-results/
 blob-report/
+.playwright-mcp/
+
+# Local debugging captures
+picker-bug.png
+*-bug.png
