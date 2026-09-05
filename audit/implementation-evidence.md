@@ -13,8 +13,9 @@ seluruh gate otomatis** karena setiap fixture dan mock hanya mewakili satu
 bentuk respons. Semuanya sudah diperbaiki beserta tes regresinya; jumlah tes
 naik dari 131 menjadi 190 unit/integrasi dan dari 29 menjadi 35 kasus E2E.
 
-Blocker eksternal yang tersisa berada di sisi verifikasi perangkat nyata dan
-satu kontrak live yang belum bisa dibuktikan dari sisi frontend.
+Kontrak live diverifikasi ulang terhadap homeserver pada 5 September 2026 dan
+mengonfirmasi salah satu temuan sebagai cacat nyata. Blocker yang tersisa
+seluruhnya berada di sisi QA perangkat nyata dan pengukuran kinerja lapangan.
 
 ## Matriks Perintah (5 September 2026)
 
@@ -68,7 +69,7 @@ Axe dijalankan terhadap composer; tidak ada pelanggaran serious/critical.
 | M5 | Downsample 50 exclusion tidak ada di jalur produksi (`.slice`), modul teruji tidak terpakai | Penggabungan dan downsample merata lewat modul teruji |
 | M6 | Dua algoritma O(n²): resampling overlap dan penulisan GPX | Keduanya berjalan dengan kursor tunggal; dijaga tes anti-regresi |
 | M7 | Tinjau ruas dan avoidance hanya mencakup leg berangkat | Keduanya bekerja pada geometri gabungan; rentang km dari profil kumulatif |
-| M8 | Parsing `alternates` hanya mengenali bentuk bersarang | Bentuk pembungkus `trip` di level atas — yang dikembalikan server live — juga diterima; mock E2E memakai bentuk tersebut |
+| M8 | Parsing `alternates` hanya mengenali bentuk bersarang, sehingga nol alternate pernah terbaca | Bentuk pembungkus `trip` di level atas diterima; **dikonfirmasi terhadap server live 5 September 2026** (lihat verifikasi kontrak live); mock E2E memakai bentuk tersebut |
 | M9 | Marker A/B tidak terlihat di screenshot bukti | **Bukan cacat produk** — artefak mock: geometri fixture tidak berhubungan dengan koordinat A/B, jadi marker berada di luar bounds rute. Tes E2E membuktikan marker ada dan terlihat |
 | M10 | `/offline-probe.txt` tidak pernah ada; HEAD ke URL 404 setiap 30 detik | Probe memakai `/config.json` |
 
@@ -119,11 +120,36 @@ persisten 400–440 px plus peta; mobile memakai hierarki peta + sheet.
 | Nominatim Indonesia submit-only | OK — hasil Monas terfilter `countrycodes=id` |
 | CORS preflight `OPTIONS /route` | DIPERBAIKI 22 Agustus 2026 — Nginx Proxy Manager men-short-circuit `OPTIONS` untuk host `valhalla.dhanypedia.it.com` dengan 204 + header CORS (konfig di `/data/nginx/custom/server_proxy.conf`, guard `$host`). Preflight terverifikasi 204 via curl. |
 | `linear_cost_factors` | DIPERBAIKI 22 Agustus 2026 — akar masalah adalah arah shape: edge-walk mengikuti edge terarah, sehingga shape terbalik gagal (error 233) pada koridor satu arah. Frontend mengirim shape searah rute; terverifikasi live (12,605 km → 12,296 km dengan faktor 5). |
-| `alternates: 2` | Server mengembalikan 2 alternates pada request B→A dengan penalti (11,629 km utama + 12,537/13,020 km alternatif). **Bentuk JSON-nya belum diverifikasi dari sisi parser** — lihat keterbatasan di bawah. |
+| `alternates: 2` | Server mengembalikan 2 alternates pada request B→A dengan penalti (11,629 km utama + 12,537/13,020 km alternatif). Bentuk JSON-nya diverifikasi pada 5 September 2026 — lihat bagian berikutnya. |
 
 Frontend mengirim `linear_cost_factors` sebagai `{shape: <encoded polyline6
 searah rute>, factor: 5}`, dan `units: kilometers` di level atas maupun di
 `directions_options` agar versi Valhalla lama maupun baru membacanya.
+
+## Verifikasi Kontrak Live (read-only, 5 September 2026)
+
+Valhalla `3.7.0-680c8f2b7`, tileset terakhir dimutakhirkan 8 Agustus 2026.
+Seluruh pemeriksaan hanya membaca; tidak ada mutasi homeserver.
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Preflight `OPTIONS /route` | 204, header CORS lengkap |
+| POST `/route` dengan `units` di level atas | Diterima; `trip.units` = `kilometers` |
+| `elevation_interval: 30` pada rute pendek kota | 277 sampel untuk leg 8,265 km — rentang array cocok dengan panjang leg dalam toleransi |
+| `linear_cost_factors` searah rute, terminal-trim | Diterima (status 0, tanpa error 233); rute pulang berbeda dari rute berangkat |
+| **Bentuk `alternates`** | **`alternates` berada di level atas respons, masing-masing dibungkus objek `trip`. `trip.alternates` tidak pernah ada.** Parser lama yang membaca `trip.alternates` karena itu selalu menghasilkan nol alternates |
+| Parser terhadap respons live (kasus Jakarta–Bogor) | Trip utama 57,912 km / 2.297 vertex; **2 alternates terbaca** (55,271 dan 56,976 km) |
+| Elevasi terhadap respons live yang sama | 1.932 sampel, nol sentinel, `complete = true`, estimasi naik 592 m / turun 295 m, 583 seksi medan |
+| Encode ulang shape gabungan | Byte-identical dengan shape asli dari server — tidak ada drift pembulatan |
+| `/trace_attributes` edge_walk atas shape yang di-encode ulang | 1.260 edge; `end_shape_index` maksimum 2296 tepat cocok dengan 2.297 vertex, jadi indeks ruas memetakan persis ke geometri rute |
+
+Kelas jalan yang teramati pada korpus ini: `trunk`, `primary`, `secondary`,
+`tertiary`, `unclassified`, `residential`, `service_other` — seluruhnya
+terpetakan oleh adapter.
+
+Konsekuensi: temuan M8 terbukti sebagai cacat nyata, bukan sekadar dugaan.
+Mode *Lewat jalan lain* sebelumnya selalu jatuh ke jalur "alternatif terbatas"
+karena tidak satu pun alternate pernah terbaca.
 
 ## Pengukuran Kinerja
 
@@ -141,12 +167,7 @@ production.
    Screen belum dijalankan; tidak ditandai sebagai lolos.
 2. **Kinerja lapangan**: metrik LCP/INP/CLS pada perangkat Android kelas
    menengah belum diukur.
-3. **Bentuk `alternates` live belum dikonfirmasi dari parser.** Parser kini
-   menerima kedua bentuk yang pernah dikirim Valhalla (pembungkus `trip` di
-   level atas respons, dan daftar bersarang di dalam `trip`), sehingga mode
-   *Lewat jalan lain* tidak lagi bergantung pada satu tebakan. Satu respons
-   live yang disimpan dan dibandingkan tetap disarankan sebelum rilis.
-4. **Penyimpangan minor yang diketahui**:
+3. **Penyimpangan minor yang diketahui**:
    - Dokumen plan/PRD masih menyebut shape cost-factor terbalik; implementasi
      searah rute adalah yang benar per kontrak live. `plan/` bersifat
      read-only, jadi koreksi dokumen menunggu keputusan pemilik produk.
@@ -154,7 +175,7 @@ production.
      tanpa `unsafe-eval` dan tanpa wildcard.
    - Satu advisory *high* (`fast-uri`) berada di dependency pengembangan;
      gate produksi tetap nol kerentanan.
-5. **Catatan infra**: perbaikan CORS berada di file override NPM
+4. **Catatan infra**: perbaikan CORS berada di file override NPM
    (`/data/nginx/custom/server_proxy.conf`). Regenerasi total konfigurasi NPM
    di masa depan harus memastikan file ini masih ada.
 
@@ -162,8 +183,9 @@ production.
 
 - Tidak ada push, pembuatan PR, atau deployment.
 - Satu mutasi homeserver dilakukan atas izin eksplisit pemilik pada 22 Agustus
-  2026 (CORS preflight host Valhalla). Tidak ada mutasi lain, dan tidak ada
-  mutasi apa pun pada 5 September 2026.
+  2026 (CORS preflight host Valhalla). Pemeriksaan 5 September 2026 seluruhnya
+  read-only: hanya `OPTIONS /route`, `POST /route`, `POST /trace_attributes`,
+  dan `GET /status` dengan koordinat publik, tanpa mutasi apa pun.
 - Tidak ada commit terhadap jalur privat (`plan/`, `.superpowers/`, `.codex/`,
   `.agents/`), kredensial, atau file rencana.
 - Semua commit lolos hook pre-commit tanpa `--no-verify`.

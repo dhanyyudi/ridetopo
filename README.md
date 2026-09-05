@@ -15,6 +15,8 @@ masing-masing dengan tes regresi. Seluruh perjalanan pengguna terbukti
 lewat 190 tes unit/integrasi dan 105 tes E2E (35 kasus × Chromium,
 Firefox, WebKit).
 
+Kontrak Valhalla live diverifikasi ulang pada 5 September 2026.
+
 **Belum production-ready.** Yang masih terbuka: QA perangkat Android dan
 iOS, serta pengukuran LCP/INP/CLS di perangkat nyata. Lihat
 [audit/implementation-evidence.md](./audit/implementation-evidence.md)
