@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useRoutePlannerStore } from "../../src/store/route-planner-store";
+import { buildDraftForCurrentState } from "../../src/features/route/use-route-planner-controller";
 import { createInitialLocations, validateRouteLocations } from "../../src/domain/location";
 import { PRODUCT_LIMITS } from "../../src/domain/route";
 import type { Position } from "../../src/domain/geo";
@@ -132,6 +133,31 @@ describe("route-planner store — result invariants", () => {
     const after = useRoutePlannerStore.getState();
     expect(after.routeError).toBeNull();
     expect(after.changesUnapplied).toBe(false);
+  });
+
+  it("saves a draft with the new route's metadata, never the previous route's", () => {
+    const state = useRoutePlannerStore.getState();
+    state.setLastValidRoute({ ...fakeRoute, id: "route-old" } as never);
+    state.setRoadSegments([
+      {
+        id: "edge-0",
+        beginShapeIndex: 0,
+        endShapeIndex: 5,
+        name: "Jalan Lama",
+        roadClass: "primary",
+        surface: "asphalt",
+        unpaved: false,
+        use: "road",
+        wayId: "1",
+      },
+    ]);
+
+    const next = { ...fakeRoute, id: "route-new" };
+    useRoutePlannerStore.getState().setLastValidRoute(next as never);
+    const draft = buildDraftForCurrentState(next as never);
+
+    expect(draft.route.id).toBe("route-new");
+    expect(draft.roadSegments).toBeNull();
   });
 
   it("discards cached road segments when a new route arrives", () => {

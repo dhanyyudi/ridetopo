@@ -30,6 +30,31 @@ function makeLeg(elevation: ElevationSample[], distanceMeters: number): RouteLeg
   };
 }
 
+describe("route coverage gate", () => {
+  const sample = (distanceMeters: number, elevationMeters: number) => ({
+    distanceMeters,
+    elevationMeters,
+  });
+
+  it("refuses to call a profile complete when it stops short of a long route", () => {
+    /* Five kilometres missing from a 500 km ride is 1% — small as a share,
+       and still five kilometres of unreported climbing. */
+    const samples = Array.from({ length: 495_000 / 30 + 1 }, (_, i) =>
+      sample(i * 30, 10 + (i % 7)),
+    );
+    const analyzed = analyzeElevation(samples, 500_000);
+    expect(analyzed.complete).toBe(false);
+    expect(analyzed.gainMeters).toBeNull();
+    expect(analyzed.lossMeters).toBeNull();
+  });
+
+  it("accepts a profile that ends within one sample of the route", () => {
+    const samples = Array.from({ length: 335 }, (_, i) => sample(i * 30, 10 + (i % 7)));
+    /* 334 * 30 = 10,020 m of profile for a 10,040 m route. */
+    expect(analyzeElevation(samples, 10_040).complete).toBe(true);
+  });
+});
+
 describe("analyzeElevation validation", () => {
   it("returns incomplete for empty samples", () => {
     const result = analyzeElevation([], 0);

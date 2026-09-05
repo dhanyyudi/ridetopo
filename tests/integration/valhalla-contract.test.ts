@@ -3,6 +3,7 @@ import { buildValhallaRequest } from "../../src/providers/routing/build-valhalla
 import { decodePolyline6 } from "../../src/lib/polyline6";
 import {
   normalizeValhallaResponse,
+  normalizeValhallaTrip,
   normalizeAlternateTrips,
   buildElevationSamples,
   ValhallaResponseError,
@@ -113,6 +114,8 @@ describe("Valhalla request contract", () => {
 
 describe("Valhalla response normalization", () => {
   it("normalizes a valid response with distance-mapped elevation", () => {
+    /* 417 samples at 30 m spans 12.48 km, which matches the 12.5 km leg. */
+    const elevation = Array.from({ length: 417 }, (_, i) => 5 + (i % 4));
     const raw: ValhallaRouteResponse = {
       trip: {
         status: 0,
@@ -121,7 +124,7 @@ describe("Valhalla response normalization", () => {
           {
             shape: "kz~fA_ehsWb@w@h@c@LY\\E\\EdCcA",
             summary: { length: 12.5, time: 1800 },
-            elevation: [5, 6, 7, 8, 9],
+            elevation,
           },
         ],
         summary: { length: 12.5, time: 1800 },
@@ -147,13 +150,33 @@ describe("Valhalla response normalization", () => {
     expect(samples[samples.length - 1]!.distanceMeters).toBe(8937);
   });
 
-  it("rejects an elevation array that cannot map to the leg length", () => {
+  it("drops an elevation array that is far too long for the leg", () => {
     const elevation = Array.from({ length: 1000 }, () => 10);
-    expect(() => buildElevationSamples(elevation, 30, 5000)).toThrow(ValhallaResponseError);
+    /* Unmappable elevation must not destroy the route: the samples are
+       dropped so the UI shows the unavailable state instead. */
+    expect(buildElevationSamples(elevation, 30, 5000)).toEqual([]);
+  });
+
+  it("drops an elevation array that is far too short for the leg", () => {
+    const elevation = Array.from({ length: 40 }, () => 10);
+    expect(buildElevationSamples(elevation, 30, 14_600)).toEqual([]);
+  });
+
+  it("drops a long-route profile that stops short, however small the share", () => {
+    /* 500 km at 30 m, but the profile ends five kilometres early. A
+       percentage tolerance would have waved this through. */
+    const covered = 495_000;
+    const elevation = Array.from({ length: covered / 30 + 1 }, () => 10);
+    expect(buildElevationSamples(elevation, 30, 500_000)).toEqual([]);
+  });
+
+  it("keeps an array whose span matches the leg within tolerance", () => {
+    const elevation = Array.from({ length: 299 }, () => 10);
+    expect(buildElevationSamples(elevation, 30, 8937)).toHaveLength(299);
   });
 
   it("treats -500 and non-finite values as null", () => {
-    const samples = buildElevationSamples([5, -500, Number.NaN, Number.POSITIVE_INFINITY, 9], 30, 500);
+    const samples = buildElevationSamples([5, -500, Number.NaN, Number.POSITIVE_INFINITY, 9], 30, 120);
     expect(samples[0]!.elevationMeters).toBe(5);
     expect(samples[1]!.elevationMeters).toBeNull();
     expect(samples[2]!.elevationMeters).toBeNull();
@@ -225,6 +248,95 @@ describe("Valhalla response normalization", () => {
       expect(alternates).toHaveLength(2);
       expect(alternates[0]!.distanceMeters).toBe(9800);
       expect(alternates[1]!.distanceMeters).toBe(11000);
+    });
+
+    it("also reads alternates from the top-level trip wrappers", () => {
+      const topLevel: ValhallaRouteResponse = {
+        trip: {
+          status: 0,
+          legs: [{ shape: "kz~fA_ehsWb@w@h@c@", summary: { length: 8.2, time: 1200 } }],
+          summary: { length: 8.2, time: 1200 },
+        },
+        alternates: [
+          {
+            trip: {
+              status: 0,
+              legs: [{ shape: "kz~fA_iisWb@o@f@a@", summary: { length: 9.8, time: 1500 } }],
+              summary: { length: 9.8, time: 1500 },
+            },
+          },
+        ],
+      };
+      const alternates = normalizeAlternateTrips(topLevel);
+      expect(alternates).toHaveLength(1);
+      expect(alternates[0]!.distanceMeters).toBe(9800);
+    });
+  });
+
+  describe("multi-leg trips", () => {
+    const twoLegTrip: ValhallaRouteResponse = {
+      trip: {
+        status: 0,
+        legs: [
+          {
+            shape: "kz~fA_ehsWb@w@h@c@",
+            summary: { length: 10, time: 1200 },
+            /* 334 samples at 30 m spans 9.99 km, matching the 10 km leg. */
+            elevation: Array.from({ length: 334 }, (_, i) => 10 + (i % 3)),
+          },
+          {
+            shape: "kz~fA_iisWb@o@f@a@",
+            summary: { length: 8, time: 900 },
+            elevation: Array.from({ length: 267 }, (_, i) => 12 + (i % 3)),
+          },
+        ],
+        summary: { length: 18, time: 2100 },
+      },
+    };
+
+    it("normalizes every leg of a waypoint route", () => {
+      expect(normalizeValhallaResponse(twoLegTrip)).toHaveLength(2);
+    });
+
+    it("collapses the legs into one trip with the full distance and duration", () => {
+      const trip = normalizeValhallaTrip(twoLegTrip);
+      expect(trip.distanceMeters).toBe(18_000);
+      expect(trip.durationSeconds).toBe(2100);
+    });
+
+    it("keeps every geometry vertex and re-encodes the combined shape", () => {
+      const legs = normalizeValhallaResponse(twoLegTrip);
+      const trip = normalizeValhallaTrip(twoLegTrip);
+      const vertexCount = legs.reduce((n, leg) => n + leg.geometry.length, 0);
+      /* The legs do not share a vertex here, so nothing is dropped. */
+      expect(trip.geometry).toHaveLength(vertexCount);
+      expect(decodePolyline6(trip.encodedShape)).toHaveLength(vertexCount);
+    });
+
+    it("puts the second leg's elevation on the combined distance axis", () => {
+      const trip = normalizeValhallaTrip(twoLegTrip);
+      expect(trip.elevation).toHaveLength(334 + 267);
+      expect(trip.elevation[0]!.distanceMeters).toBe(0);
+      expect(trip.elevation[333]!.distanceMeters).toBe(9_990);
+      /* The return leg restarts at 0 and must be shifted by the first leg. */
+      expect(trip.elevation[334]!.distanceMeters).toBe(10_000);
+      expect(trip.elevation[335]!.distanceMeters).toBe(10_030);
+      const distances = trip.elevation.map((sample) => sample.distanceMeters);
+      expect(distances.every((d, i) => i === 0 || d > distances[i - 1]!)).toBe(true);
+    });
+
+    it("never borrows the trip summary for one leg of many", () => {
+      const missingSummary: ValhallaRouteResponse = {
+        trip: {
+          status: 0,
+          legs: [
+            { shape: "kz~fA_ehsWb@w@h@c@", summary: { length: 10, time: 1200 } },
+            { shape: "kz~fA_iisWb@o@f@a@" },
+          ],
+          summary: { length: 18, time: 2100 },
+        },
+      };
+      expect(() => normalizeValhallaResponse(missingSummary)).toThrow(ValhallaResponseError);
     });
   });
 });

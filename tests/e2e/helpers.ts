@@ -20,8 +20,13 @@ export const ALT2_SHAPE =
 export const ROUTE_LENGTH_KM = 14.6;
 export const ROUTE_TIME_SEC = 1900;
 
-function elevationArray(length = 40): number[] {
-  return Array.from({ length }, (_, i) => 5 + Math.round(Math.sin(i / 5) * 8));
+/**
+ * Valhalla samples elevation every 30 m, so the array length has to follow the
+ * leg length. A short array cannot be mapped to the route and is discarded.
+ */
+export function elevationArray(lengthMeters: number): number[] {
+  const count = Math.floor(lengthMeters / 30) + 1;
+  return Array.from({ length: count }, (_, i) => 5 + Math.round(Math.sin(i / 5) * 8));
 }
 
 export function outboundResponse() {
@@ -34,7 +39,7 @@ export function outboundResponse() {
         {
           shape: OUTBOUND_SHAPE,
           summary: { length: ROUTE_LENGTH_KM, time: ROUTE_TIME_SEC },
-          elevation: elevationArray(),
+          elevation: elevationArray(ROUTE_LENGTH_KM * 1000),
         },
       ],
       summary: { length: ROUTE_LENGTH_KM, time: ROUTE_TIME_SEC },
@@ -42,6 +47,41 @@ export function outboundResponse() {
   };
 }
 
+export const LEG_A_LENGTH_KM = 8.4;
+export const LEG_B_LENGTH_KM = 6.2;
+export const MULTI_LEG_LENGTH_KM = LEG_A_LENGTH_KM + LEG_B_LENGTH_KM;
+
+/**
+ * What Valhalla actually returns for A -> waypoint -> B: one leg per
+ * consecutive location pair. Totals must come from every leg, not the first.
+ */
+export function waypointResponse() {
+  return {
+    trip: {
+      status: 0,
+      status_message: "Found route",
+      units: "kilometers",
+      legs: [
+        {
+          shape: OUTBOUND_SHAPE,
+          summary: { length: LEG_A_LENGTH_KM, time: 1100 },
+          elevation: elevationArray(LEG_A_LENGTH_KM * 1000),
+        },
+        {
+          shape: RETURN_SHAPE,
+          summary: { length: LEG_B_LENGTH_KM, time: 800 },
+          elevation: elevationArray(LEG_B_LENGTH_KM * 1000),
+        },
+      ],
+      summary: { length: MULTI_LEG_LENGTH_KM, time: 1900 },
+    },
+  };
+}
+
+/**
+ * Alternates arrive at the top level of the response, each wrapped in its own
+ * `trip` object — the shape a live Valhalla server returns.
+ */
 export function returnResponseWithAlternates() {
   return {
     trip: {
@@ -55,17 +95,23 @@ export function returnResponseWithAlternates() {
         },
       ],
       summary: { length: 15.1, time: 2050 },
-      alternates: [
-        {
+    },
+    alternates: [
+      {
+        trip: {
+          status: 0,
           legs: [{ shape: ALT1_SHAPE, summary: { length: 16.4, time: 2200 } }],
           summary: { length: 16.4, time: 2200 },
         },
-        {
+      },
+      {
+        trip: {
+          status: 0,
           legs: [{ shape: ALT2_SHAPE, summary: { length: 17.9, time: 2400 } }],
           summary: { length: 17.9, time: 2400 },
         },
-      ],
-    },
+      },
+    ],
   };
 }
 

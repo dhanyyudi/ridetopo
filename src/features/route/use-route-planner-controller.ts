@@ -3,12 +3,16 @@ import { useRoutePlannerStore, type ExclusionItem } from "@/store/route-planner-
 import { validateRouteLocations } from "@/domain/location";
 import type { Position } from "@/domain/geo";
 import type { RoutePlanInput, PlannedRoute, RoadSegment } from "@/domain/route";
+import type { DraftV1 } from "@/domain/export";
 import type { GeocodingResult, RoutingProvider, GeocodingProvider } from "@/providers/contracts";
 import { getRuntimeConfig } from "@/config/runtime-config";
 import { createValhallaProvider } from "@/providers/routing/valhalla-provider";
 import { createNominatimProvider } from "@/providers/geocoding/nominatim-provider";
 import { planRoute } from "@/services/routing/plan-route";
+import { routeEncodedShape } from "@/services/routing/merge-legs";
+import { mergeExclusionPositions } from "@/services/avoidance/build-exclusions";
 import { draftRepository } from "@/services/persistence/draft-repository";
+import { savePreferences } from "@/services/persistence/preference-storage";
 import { buildDraftFromRoute } from "@/services/persistence/draft-serialization";
 import { PRODUCT_LIMITS } from "@/domain/route";
 import { COPY } from "@/content/id";
@@ -61,6 +65,18 @@ export function useRoutePlannerController() {
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasPlannedRef = useRef(false);
+  const traceIdRef = useRef(0);
+  const traceAbortRef = useRef<AbortController | null>(null);
+
+  /* Nothing must keep firing after the app unmounts. */
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+      traceAbortRef.current?.abort();
+    },
+    [],
+  );
 
   const providers = useCallback((): ProviderSingletons | null => {
     try {
@@ -111,16 +127,19 @@ export function useRoutePlannerController() {
           return;
         }
 
-        const state = useRoutePlannerStore.getState();
-        state.setLastValidRoute(route);
-        state.setIsCalculating(false);
+        useRoutePlannerStore.getState().setLastValidRoute(route);
+        useRoutePlannerStore.getState().setIsCalculating(false);
 
-        if (!hasPlannedRef.current || state.appView === "composer") {
+        /* Read the store again after setLastValidRoute: that action clears the
+           road metadata traced from the previous route, and a stale snapshot
+           would carry it into the saved draft. */
+        const applied = useRoutePlannerStore.getState();
+        if (!hasPlannedRef.current || applied.appView === "composer") {
           hasPlannedRef.current = true;
-          state.setAppView("result");
+          applied.setAppView("result");
         }
 
-        void persistDraft(route, state.roadSegments, state.activeExclusions);
+        void persistDraft(route);
       } catch (err) {
         if (requestId !== requestIdRef.current) {
           return;
@@ -191,7 +210,7 @@ export function useRoutePlannerController() {
       const loc = state.locations.find((l) => l.id === locationId);
       state.updateLocation(locationId, {
         position,
-        label: loc?.label && loc.source === "search" ? loc.label : "Titik pilihan",
+        label: loc?.label && loc.source === "search" ? loc.label : COPY.mapPickLabel,
         source: "map",
       });
       state.setMapPicker({ open: false, targetId: null });
@@ -207,20 +226,28 @@ export function useRoutePlannerController() {
       if (!loc || loc.role !== "origin") return;
 
       if (!("geolocation" in navigator)) {
-        state.setRouteError(COPY.locationUnavailable);
+        state.setLocationNotice(COPY.locationUnavailable);
         return;
       }
 
+      state.setLocationNotice(null);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          useRoutePlannerStore.getState().setLocationNotice(null);
           applyLocation(locationId, {
             position: [pos.coords.longitude, pos.coords.latitude],
-            label: "Lokasi saya",
+            label: COPY.myLocation,
             source: "geolocation",
           });
         },
-        () => {
-          useRoutePlannerStore.getState().setRouteError(COPY.locationDenied);
+        (error) => {
+          /* Inline beside the location controls: a denied permission is not a
+             routing failure and must not replace the route error. */
+          useRoutePlannerStore
+            .getState()
+            .setLocationNotice(
+              error.code === error.TIMEOUT ? COPY.locationTimeout : COPY.locationDenied,
+            );
         },
         { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
       );
@@ -267,6 +294,16 @@ export function useRoutePlannerController() {
       if (change.terrainPreference !== undefined) state.setTerrainPreference(change.terrainPreference);
       if (change.returnToStart !== undefined) state.setReturnToStart(change.returnToStart);
       if (change.returnMode !== undefined) state.setReturnMode(change.returnMode);
+
+      /* Only the lightweight UI preferences persist; where someone rides
+         stays in the validated draft. */
+      const after = useRoutePlannerStore.getState();
+      savePreferences({
+        profile: after.profile,
+        roadPreference: after.roadPreference,
+        terrainPreference: after.terrainPreference,
+      });
+
       rerouteIfValid();
     },
     [rerouteIfValid],
@@ -291,13 +328,26 @@ export function useRoutePlannerController() {
       return;
     }
 
+    const traceId = ++traceIdRef.current;
+    traceAbortRef.current?.abort();
+    const abort = new AbortController();
+    traceAbortRef.current = abort;
+
     state.setRoadSegmentsLoading(true);
     try {
-      const segments = await activeProviders.routing.traceAttributes(route.outbound.encodedShape, new AbortController().signal);
+      /* The whole route, round trips included — the return leg is part of the
+         ride and must be reviewable too. */
+      const segments = await activeProviders.routing.traceAttributes(
+        routeEncodedShape(route),
+        abort.signal,
+      );
+      if (traceId !== traceIdRef.current) return;
       useRoutePlannerStore.getState().setRoadSegments(segments as RoadSegment[]);
       useRoutePlannerStore.getState().setRoadSegmentsLoading(false);
-    } catch {
+    } catch (err) {
+      if (traceId !== traceIdRef.current) return;
       useRoutePlannerStore.getState().setRoadSegmentsLoading(false);
+      if (err instanceof DOMException && err.name === "AbortError") return;
       useRoutePlannerStore.getState().setRoadMetadataError(COPY.metadataUnavailable);
     }
   }, [providers]);
@@ -313,28 +363,14 @@ export function useRoutePlannerController() {
       const previousRoute = state.lastValidRoute;
       const previousExclusions = state.activeExclusions;
 
+      const combined = mergeExclusions(previousExclusions, positions, label);
+
       if (!hasPlannedRef.current || !previousRoute) {
-        const combined: ExclusionItem[] = [...previousExclusions];
-        for (const pos of positions) {
-          const isDuplicate = combined.some(
-            (e) => Math.abs(e.position[0] - pos[0]) < 1e-5 && Math.abs(e.position[1] - pos[1]) < 1e-5,
-          );
-          if (isDuplicate) continue;
-          combined.push({ id: crypto.randomUUID(), position: pos, label });
-        }
-        state.setActiveExclusions(combined.slice(0, PRODUCT_LIMITS.maxExclusionLocations));
+        state.setActiveExclusions(combined);
         return;
       }
 
-      const combined: ExclusionItem[] = [...previousExclusions];
-      for (const pos of positions) {
-        const isDuplicate = combined.some(
-          (e) => Math.abs(e.position[0] - pos[0]) < 1e-5 && Math.abs(e.position[1] - pos[1]) < 1e-5,
-        );
-        if (isDuplicate) continue;
-        combined.push({ id: crypto.randomUUID(), position: pos, label });
-      }
-      state.setActiveExclusions(combined.slice(0, PRODUCT_LIMITS.maxExclusionLocations));
+      state.setActiveExclusions(combined);
 
       const built = buildInput();
       if ("error" in built) {
@@ -352,20 +388,21 @@ export function useRoutePlannerController() {
       }
 
       const newRoute = after.lastValidRoute;
-      if (newRoute && avoidedGeometry.length >= 2) {
-        void import("@/services/avoidance/validate-avoidance").then(({ validateAvoidance }) => {
-          const stillCrossing = !validateAvoidance(avoidedGeometry, newRoute.outbound.geometry, {
-            toleranceMeters: 20,
-            terminalAllowanceMeters: 40,
-          });
-          if (stillCrossing) {
-            const s = useRoutePlannerStore.getState();
-            s.setActiveExclusions(previousExclusions);
-            s.setLastValidRoute(previousRoute);
-            s.setRouteError(COPY.avoidanceFailed);
-            s.setChangesUnapplied(true);
-          }
-        });
+      if (!newRoute || avoidedGeometry.length < 2) return;
+
+      /* Awaited, so the rollback cannot land on top of a later route. */
+      const { validateAvoidance } = await import("@/services/avoidance/validate-avoidance");
+      const stillCrossing = !validateAvoidance(avoidedGeometry, newRoute.geometry, {
+        toleranceMeters: 20,
+        terminalAllowanceMeters: 40,
+      });
+
+      if (stillCrossing && useRoutePlannerStore.getState().lastValidRoute === newRoute) {
+        const rolledBack = useRoutePlannerStore.getState();
+        rolledBack.setActiveExclusions(previousExclusions);
+        rolledBack.setLastValidRoute(previousRoute);
+        rolledBack.setRouteError(COPY.avoidanceFailed);
+        rolledBack.setChangesUnapplied(true);
       }
     },
     [buildInput, executeRouteRequest],
@@ -414,7 +451,7 @@ export function useRoutePlannerController() {
       activeExclusions: draft.activeExclusions.map((p, i) => ({
         id: `excl-${i}-${p[0]}-${p[1]}`,
         position: p,
-        label: "Hindaran",
+        label: COPY.exclusionLabel,
       })),
       locations: draft.route.input.locations.map((l) => ({ ...l })),
       profile: draft.route.input.profile,
@@ -440,18 +477,18 @@ export function useRoutePlannerController() {
     const route = state.lastValidRoute;
     if (!route) return;
 
-    void import("@/services/export/build-gpx").then(({ generateGpxBlob, generateGpxFilename }) => {
-      const blob = generateGpxBlob(route);
-      const filename = generateGpxFilename(route);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
+    void (async () => {
+      try {
+        const { generateGpxBlob, generateGpxFilename } = await import(
+          "@/services/export/build-gpx"
+        );
+        const { triggerDownload } = await import("@/services/export/share-route-card");
+        triggerDownload(generateGpxBlob(route), generateGpxFilename(route));
+      } catch {
+        /* A failed export must leave the route untouched. */
+        useRoutePlannerStore.getState().setRouteError(COPY.errorExport);
+      }
+    })();
   }, []);
 
   const prepareImage = useCallback(async (): Promise<void> => {
@@ -580,14 +617,48 @@ export function useRoutePlannerController() {
   };
 }
 
-async function persistDraft(
-  route: PlannedRoute,
-  roadSegments: RoadSegment[] | null,
-  activeExclusions: ExclusionItem[],
-): Promise<void> {
+/**
+ * Merge new exclusion points into the active list, keeping the identity and
+ * label of points that are already there.
+ */
+function mergeExclusions(
+  existing: readonly ExclusionItem[],
+  incoming: readonly Position[],
+  label: string,
+): ExclusionItem[] {
+  const merged = mergeExclusionPositions(
+    existing.map((item) => item.position),
+    incoming,
+    PRODUCT_LIMITS.maxExclusionLocations,
+  );
+
+  return merged.map((position) => {
+    const previous = existing.find(
+      (item) =>
+        Math.abs(item.position[0] - position[0]) < 1e-9 &&
+        Math.abs(item.position[1] - position[1]) < 1e-9,
+    );
+    return previous ?? { id: crypto.randomUUID(), position, label };
+  });
+}
+
+/**
+ * Build the draft from the store as it stands right now. Never from a
+ * snapshot captured before the route was applied — road metadata is keyed to
+ * the route it was traced from and is reset when a new route arrives.
+ */
+export function buildDraftForCurrentState(route: PlannedRoute): DraftV1 {
+  const { roadSegments, activeExclusions } = useRoutePlannerStore.getState();
+  return buildDraftFromRoute(
+    route,
+    roadSegments,
+    activeExclusions.map((exclusion) => exclusion.position),
+  );
+}
+
+async function persistDraft(route: PlannedRoute): Promise<void> {
   try {
-    const draft = buildDraftFromRoute(route, roadSegments, activeExclusions.map((e) => e.position));
-    await draftRepository.save(draft);
+    await draftRepository.save(buildDraftForCurrentState(route));
   } catch {
     /* Draft persistence is best-effort */
   }

@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { COPY } from "@/content/id";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { X, Share2, Download } from "lucide-react";
 
 interface Props {
@@ -11,11 +13,24 @@ interface Props {
 }
 
 export function ImagePreviewDialog({ open, imageUrl, onClose, onShare, onDownload }: Props) {
+  const panelRef = useFocusTrap<HTMLDivElement>(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return createPortal(
     <div className="image-preview-backdrop" role="presentation" onClick={onClose}>
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="image-preview-panel"
         role="dialog"
         aria-modal="true"

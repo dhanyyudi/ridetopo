@@ -1,7 +1,8 @@
 import type { PlannedRoute, ElevationSample } from "@/domain/route";
-import { interpolateElevationAtDistance } from "@/domain/elevation";
+import { createElevationInterpolator } from "@/domain/elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
-import { mergeElevationSamples } from "@/services/routing/plan-round-trip";
+import { combinedElevationSamples } from "@/services/routing/merge-legs";
+import { COPY } from "@/content/id";
 
 function escapeXml(s: string): string {
   return s
@@ -31,19 +32,20 @@ function buildGpxContent(route: PlannedRoute): string {
   const geometry = route.geometry;
   /* Return-leg samples are 0-based relative to the return leg; merge them
      onto the combined distance axis before interpolating. */
-  const elevationProfile: ElevationSample[] = route.returnLeg
-    ? mergeElevationSamples(route.outbound, route.returnLeg)
-    : [...route.outbound.elevation];
+  const elevationProfile: ElevationSample[] = combinedElevationSamples(route);
 
   /* Distance profile over the combined geometry so elevation maps by
      cumulative distance, never by array index. */
   const cumulative = cumulativeDistances(geometry);
+  /* Cursor-based: both arrays advance together, so a 500 km route does not
+     rescan the elevation profile per vertex. */
+  const elevationAt = createElevationInterpolator(elevationProfile);
 
   let trkpts = "";
   for (let i = 0; i < geometry.length; i++) {
     const pt = geometry[i]!;
     const distanceAtPoint = cumulative[i] ?? 0;
-    const elevation = interpolateElevationAtDistance(elevationProfile, distanceAtPoint);
+    const elevation = elevationAt(distanceAtPoint);
     trkpts += `    <trkpt lat="${pt[1]}" lon="${pt[0]}">\n`;
     if (elevation !== null) {
       trkpts += `      <ele>${round5(elevation)}</ele>\n`;
@@ -55,8 +57,8 @@ function buildGpxContent(route: PlannedRoute): string {
   for (const loc of route.input.locations) {
     const isRoundTripOrigin = route.input.returnToStart && loc.role === "origin";
     const wptLabel = isRoundTripOrigin
-      ? "Mulai/Selesai"
-      : escapeXml(loc.label || "Titik");
+      ? COPY.gpxRoundTripOrigin
+      : escapeXml(loc.label || COPY.gpxWaypointFallback);
     wpts += `  <wpt lat="${loc.position[1]}" lon="${loc.position[0]}">\n`;
     wpts += `    <name>${wptLabel}</name>\n`;
     wpts += "  </wpt>\n";

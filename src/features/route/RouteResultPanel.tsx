@@ -1,10 +1,10 @@
-import { useMemo } from "react";
 import { COPY } from "@/content/id";
 import { useRoutePlannerStore } from "@/store/route-planner-store";
 import type { useRoutePlannerController } from "./use-route-planner-controller";
-import { analyzeElevation } from "@/domain/elevation";
+import { getRouteElevation } from "@/services/routing/route-elevation";
 import { ElevationChart } from "@/features/elevation/ElevationChart";
 import { ElevationSummary } from "@/features/elevation/ElevationSummary";
+import { TerrainLegend } from "@/features/elevation/TerrainLegend";
 import { RouteSummary } from "./RouteSummary";
 import { Pencil, Download, Image as ImageIcon, Map as MapIcon } from "lucide-react";
 
@@ -17,13 +17,11 @@ export function RouteResultPanel({ controller, offline }: Props) {
   const store = useRoutePlannerStore();
   const route = store.lastValidRoute;
 
-  const elevation = useMemo(() => {
-    if (!route) return null;
-    const samples = [...route.outbound.elevation, ...(route.returnLeg?.elevation ?? [])];
-    return analyzeElevation(samples, route.metrics.distanceMeters);
-  }, [route]);
-
   if (!route) return null;
+
+  /* Shared, cached analysis: the return leg's samples are shifted onto the
+     combined distance axis, so the panel and the exports agree. */
+  const elevation = getRouteElevation(route);
 
   return (
     <div className="result-panel">
@@ -53,17 +51,23 @@ export function RouteResultPanel({ controller, offline }: Props) {
           </p>
         )}
 
-        {elevation && (
-          <section className="result-section" aria-labelledby="elevation-heading">
-            <h2 id="elevation-heading" className="section-title">
-              {COPY.elevationGain}
-            </h2>
-            <ElevationSummary elevation={elevation} />
-            <div className="chart-host">
-              <ElevationChart samples={elevation.samples} terrain={elevation.terrain} height={190} />
-            </div>
-          </section>
-        )}
+        <section className="result-section" aria-labelledby="elevation-heading">
+          <h2 id="elevation-heading" className="section-title">
+            {COPY.elevationSectionTitle}
+          </h2>
+          <ElevationSummary elevation={elevation} />
+          <div className="chart-host">
+            <ElevationChart
+              samples={elevation.samples}
+              terrain={elevation.terrain}
+              height={190}
+              cursor={store.chartCursorMeters}
+              onCursorChange={store.setChartCursorMeters}
+            />
+          </div>
+          {/* Terrain must never be read from colour alone. */}
+          <TerrainLegend />
+        </section>
 
         <section className="result-section">
           <button

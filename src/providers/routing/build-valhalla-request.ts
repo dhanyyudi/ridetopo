@@ -32,6 +32,9 @@ export function buildValhallaRequest(input: ProviderRouteRequest): ValhallaRoute
     locations,
     costing: "bicycle",
     costing_options: costingOptions,
+    /* Sent at both levels: current Valhalla reads the top-level field, older
+       builds only read directions_options. */
+    units: "kilometers",
     directions_options: { units: "kilometers" },
     elevation_interval: input.elevationIntervalMeters,
   };

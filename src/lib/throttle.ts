@@ -1,18 +1,19 @@
-export function debounce<T extends (...args: never[]) => void>(fn: T, ms: number): T {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return ((...args: never[]) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  }) as T;
-}
+/**
+ * Serialised rate gate.
+ *
+ * Each caller claims the next free slot before it awaits, so requests that
+ * arrive together queue one interval apart instead of all firing the moment
+ * their individual waits elapse.
+ */
+export function createRateLimiter(minIntervalMs: number): () => Promise<void> {
+  let nextSlot = 0;
 
-export function throttle<T extends (...args: never[]) => void>(fn: T, minIntervalMs: number): T {
-  let lastCall = 0;
-  return ((...args: never[]) => {
+  return async () => {
     const now = Date.now();
-    if (now - lastCall >= minIntervalMs) {
-      lastCall = now;
-      fn(...args);
+    const slot = Math.max(now, nextSlot);
+    nextSlot = slot + minIntervalMs;
+    if (slot > now) {
+      await new Promise((resolve) => setTimeout(resolve, slot - now));
     }
-  }) as T;
+  };
 }

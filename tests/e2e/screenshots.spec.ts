@@ -52,6 +52,16 @@ async function mockProviders(page: Page) {
   mockTiles(page);
 }
 
+/** The highlight is drawn by MapLibre, so give it a frame before capturing. */
+async function waitForSelectionOnMap(page: Page) {
+  await expect
+    .poll(async () =>
+      Number((await page.locator(".map-host").getAttribute("data-selection-points")) ?? 0),
+    )
+    .toBeGreaterThan(1);
+  await page.waitForTimeout(400);
+}
+
 test.describe("evidence screenshots", () => {
   test("composer 390", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -93,8 +103,9 @@ test.describe("evidence screenshots", () => {
     await page.goto("/");
     await planJourney(page);
     await page.getByRole("button", { name: "Tinjau ruas jalan" }).click();
-    await expect(page.getByText("Jalan Sudirman")).toBeVisible();
-    await page.getByText("Jalan Sudirman").click();
+    await expect(page.getByText("Jalan Sudirman").first()).toBeVisible();
+    await page.getByText("Jalan Sudirman").first().click();
+    await waitForSelectionOnMap(page);
     await page.screenshot({ path: "audit/screenshots/road-review-390.png" });
   });
 
@@ -104,8 +115,9 @@ test.describe("evidence screenshots", () => {
     await page.goto("/");
     await planJourney(page);
     await page.getByRole("button", { name: "Tinjau ruas jalan" }).click();
-    await expect(page.getByText("Jalan Sudirman")).toBeVisible();
-    await page.getByText("Jalan Sudirman").click();
+    await expect(page.getByText("Jalan Sudirman").first()).toBeVisible();
+    await page.getByText("Jalan Sudirman").first().click();
+    await waitForSelectionOnMap(page);
     await page.screenshot({ path: "audit/screenshots/road-review-1440.png" });
   });
 

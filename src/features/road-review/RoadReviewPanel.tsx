@@ -1,11 +1,20 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { COPY } from "@/content/id";
 import { useRoutePlannerStore } from "@/store/route-planner-store";
 import type { useRoutePlannerController } from "@/features/route/use-route-planner-controller";
 import type { RoadSegment } from "@/domain/route";
+import { PRODUCT_LIMITS } from "@/domain/route";
 import type { Position } from "@/domain/geo";
-import { getRoadDisplayName, getRoadClassDescription, getSurfaceLabel } from "@/domain/road";
+import { getRoadDisplayName, getRoadDescriptor } from "@/domain/road";
 import { formatDistance } from "@/lib/format-id";
+import { cumulativeDistances } from "@/services/routing/calculate-overlap";
+import { buildMultiEdgeExclusions } from "@/services/avoidance/build-exclusions";
+import {
+  buildSegmentRanges,
+  segmentsWithinBounds,
+  advanceCorridor,
+  corridorRange,
+} from "@/services/road/segment-ranges";
 import { Check, Ban, Minus } from "lucide-react";
 
 interface Props {
@@ -15,61 +24,107 @@ interface Props {
 
 export function RoadReviewPanel({ controller, onExit }: Props) {
   const store = useRoutePlannerStore();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [corridorMode, setCorridorMode] = useState(false);
-  const [corridorStart, setCorridorStart] = useState<number | null>(null);
-  const [corridorEnd, setCorridorEnd] = useState<number | null>(null);
   const [avoiding, setAvoiding] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
   const route = store.lastValidRoute;
   const segments = useMemo(() => store.roadSegments ?? [], [store.roadSegments]);
 
+  /* Trace and avoidance both run against the whole route, round trips
+     included, so every distance here comes from the combined geometry. */
+  const geometry = useMemo(() => route?.geometry ?? [], [route]);
+  const cumulative = useMemo(() => cumulativeDistances(geometry), [geometry]);
+  const ranges = useMemo(
+    () => buildSegmentRanges(segments, cumulative),
+    [segments, cumulative],
+  );
+  const rangeById = useMemo(
+    () => new Map(ranges.map((range) => [range.id, range])),
+    [ranges],
+  );
+
+  const { reviewSelection, reviewCorridor, setReviewSelection, setReviewCorridor } = store;
+  const corridorMode = reviewCorridor !== null;
+
+  const selectedId =
+    !corridorMode && reviewSelection?.segmentIds.length === 1
+      ? reviewSelection.segmentIds[0]!
+      : null;
   const selected = useMemo(
     () => segments.find((s) => s.id === selectedId) ?? null,
     [segments, selectedId],
   );
 
-  const routeLength = route?.metrics.distanceMeters ?? 0;
+  /* Leaving review clears the highlight so the result map is clean again. */
+  useEffect(
+    () => () => {
+      setReviewSelection(null);
+      setReviewCorridor(null);
+    },
+    [setReviewSelection, setReviewCorridor],
+  );
 
-  const handleSelect = useCallback((seg: RoadSegment) => {
-    setSelectedId((prev) => (prev === seg.id ? null : seg.id));
-  }, []);
-
-  const corridorRange = useCallback((): { start: number; end: number } | null => {
-    if (corridorStart == null || corridorEnd == null) return null;
-    return {
-      start: Math.min(corridorStart, corridorEnd),
-      end: Math.max(corridorStart, corridorEnd),
-    };
-  }, [corridorStart, corridorEnd]);
+  const handleSelect = useCallback(
+    (seg: RoadSegment) => {
+      if (selectedId === seg.id) {
+        setReviewSelection(null);
+        return;
+      }
+      setReviewSelection({
+        startShapeIndex: seg.beginShapeIndex,
+        endShapeIndex: seg.endShapeIndex,
+        segmentIds: [seg.id],
+      });
+    },
+    [selectedId, setReviewSelection],
+  );
 
   const startCorridor = useCallback(() => {
     if (!selected) return;
-    setCorridorMode(true);
-    setCorridorStart(null);
-    setCorridorEnd(null);
+    setReviewCorridor({ startShapeIndex: null, endShapeIndex: null });
+    setReviewSelection(null);
     setReviewError(null);
-  }, [selected]);
+  }, [selected, setReviewCorridor, setReviewSelection]);
 
-  const markBoundary = useCallback((segmentId: string) => {
-    const seg = segments.find((s) => s.id === segmentId);
-    if (!seg) return;
-    if (corridorStart == null) {
-      setCorridorStart(seg.beginShapeIndex);
-    } else {
-      setCorridorEnd(seg.endShapeIndex);
-    }
-  }, [segments, corridorStart]);
+  const cancelCorridor = useCallback(() => {
+    setReviewCorridor(null);
+    setReviewSelection(null);
+  }, [setReviewCorridor, setReviewSelection]);
+
+  const markBoundary = useCallback(
+    (segmentId: string) => {
+      const seg = segments.find((s) => s.id === segmentId);
+      if (!seg || !reviewCorridor) return;
+
+      const next = advanceCorridor(reviewCorridor, seg);
+      setReviewCorridor(next);
+
+      const bounds = corridorRange(next);
+      setReviewSelection(
+        bounds
+          ? {
+              startShapeIndex: bounds.start,
+              endShapeIndex: bounds.end,
+              segmentIds: segmentsWithinBounds(segments, bounds.start, bounds.end).map(
+                (s) => s.id,
+              ),
+            }
+          : null,
+      );
+    },
+    [segments, reviewCorridor, setReviewCorridor, setReviewSelection],
+  );
 
   const applyAvoidance = useCallback(async () => {
     if (!route) return;
     setAvoiding(true);
     setReviewError(null);
 
-    const bounds = corridorMode ? corridorRange() : selected
-      ? { start: selected.beginShapeIndex, end: selected.endShapeIndex }
-      : null;
+    const bounds = reviewCorridor
+      ? corridorRange(reviewCorridor)
+      : selected
+        ? { start: selected.beginShapeIndex, end: selected.endShapeIndex }
+        : null;
 
     if (!bounds) {
       setAvoiding(false);
@@ -77,42 +132,55 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
       return;
     }
 
-    const edgeSegments = segments.filter((s) => {
-      const mid = (s.beginShapeIndex + s.endShapeIndex) / 2;
-      return mid >= bounds.start && mid <= bounds.end;
-    });
-
+    const edgeSegments = segmentsWithinBounds(segments, bounds.start, bounds.end);
     if (edgeSegments.length === 0) {
       setAvoiding(false);
       setReviewError(COPY.reviewHint);
       return;
     }
 
-    const midpoints: Position[] = edgeSegments.map((seg) => {
-      const midIdx = Math.floor((seg.beginShapeIndex + seg.endShapeIndex) / 2);
-      const pt = route.outbound.geometry[Math.min(midIdx, route.outbound.geometry.length - 1)];
-      return pt ?? route.outbound.geometry[route.outbound.geometry.length - 1]!;
-    });
+    /* Deduplicated and evenly downsampled to the server budget, never
+       truncated: a long corridor must stay avoided end to end. */
+    const positions = buildMultiEdgeExclusions(edgeSegments, geometry, []);
 
-    const avoidedGeometry: Position[] = route.outbound.geometry.slice(
+    const avoidedGeometry: Position[] = geometry.slice(
       Math.max(0, bounds.start),
-      Math.min(route.outbound.geometry.length, bounds.end + 1),
+      Math.min(geometry.length, bounds.end + 1),
     ) as Position[];
 
     await controller.addAvoidance(
-      midpoints,
+      positions,
       edgeSegments.map(getRoadDisplayName).join(", "),
       avoidedGeometry,
     );
 
     setAvoiding(false);
-    setSelectedId(null);
-    setCorridorMode(false);
-    setCorridorStart(null);
-    setCorridorEnd(null);
-  }, [route, segments, selected, corridorMode, controller, corridorRange]);
+    setReviewSelection(null);
+    setReviewCorridor(null);
+  }, [
+    route,
+    segments,
+    geometry,
+    selected,
+    reviewCorridor,
+    controller,
+    setReviewSelection,
+    setReviewCorridor,
+  ]);
 
   if (!route) return null;
+
+  const bounds = reviewCorridor ? corridorRange(reviewCorridor) : null;
+  const corridorLabel = (() => {
+    if (!reviewCorridor || reviewCorridor.startShapeIndex == null) return COPY.corridorStart;
+    const startMeters = cumulative[Math.min(reviewCorridor.startShapeIndex, cumulative.length - 1)] ?? 0;
+    if (!bounds) {
+      return `${COPY.corridorStart}: ${formatDistance(startMeters)} — ${COPY.corridorEnd}`;
+    }
+    const from = cumulative[Math.min(bounds.start, cumulative.length - 1)] ?? 0;
+    const to = cumulative[Math.min(bounds.end, cumulative.length - 1)] ?? 0;
+    return `${COPY.corridorRange}: ${formatDistance(from)}–${formatDistance(to)}`;
+  })();
 
   return (
     <div className="review-panel">
@@ -147,9 +215,8 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
 
         <div className="segment-list" role="listbox" aria-label={COPY.roadReviewTitle}>
           {segments.map((seg) => {
-            const kmStart = (seg.beginShapeIndex / Math.max(1, route.outbound.geometry.length - 1)) * routeLength;
-            const kmEnd = (seg.endShapeIndex / Math.max(1, route.outbound.geometry.length - 1)) * routeLength;
-            const isSelected = selectedId === seg.id;
+            const range = rangeById.get(seg.id);
+            const isSelected = reviewSelection?.segmentIds.includes(seg.id) ?? false;
 
             return (
               <button
@@ -160,9 +227,12 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
                 className={`segment-item ${isSelected ? "selected" : ""}`}
                 onClick={() => (corridorMode ? markBoundary(seg.id) : handleSelect(seg))}
               >
-                <span className="segment-item-name">{getRoadDisplayName(seg)}</span>
+                <span className="segment-item-name">
+                  {getRoadDisplayName(seg)}
+                </span>
                 <span className="segment-item-detail">
-                  {formatDistance(kmStart)}–{formatDistance(kmEnd)} · {getRoadClassDescription(seg)} · {getSurfaceLabel(seg)}
+                  {formatDistance(range?.startMeters ?? 0)}–{formatDistance(range?.endMeters ?? 0)} ·{" "}
+                  {getRoadDescriptor(seg)}
                 </span>
               </button>
             );
@@ -171,26 +241,17 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
 
         {corridorMode && (
           <div className="segment-detail-panel">
-            <p className="segment-detail-meta">
-              {corridorStart == null
-                ? COPY.corridorStart
-                : corridorEnd == null
-                  ? COPY.corridorEnd
-                  : `${COPY.corridorStart}: ${corridorStart} — ${COPY.corridorEnd}: ${corridorEnd}`}
-            </p>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="btn btn-secondary" onClick={() => void applyAvoidance()} disabled={avoiding || corridorStart == null || corridorEnd == null}>
-                {COPY.applyAvoidance}
-              </button>
+            <p className="segment-detail-meta">{corridorLabel}</p>
+            <div className="segment-detail-actions">
               <button
                 type="button"
-                className="btn btn-tertiary"
-                onClick={() => {
-                  setCorridorMode(false);
-                  setCorridorStart(null);
-                  setCorridorEnd(null);
-                }}
+                className="btn btn-secondary"
+                onClick={() => void applyAvoidance()}
+                disabled={avoiding || bounds === null}
               >
+                {COPY.applyAvoidance}
+              </button>
+              <button type="button" className="btn btn-tertiary" onClick={cancelCorridor}>
                 {COPY.cancelAvoidance}
               </button>
             </div>
@@ -202,11 +263,18 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
             <div>
               <div className="segment-detail-name">{getRoadDisplayName(selected)}</div>
               <div className="segment-detail-meta">
-                {getRoadClassDescription(selected)} · {getSurfaceLabel(selected)}
+                {formatDistance(rangeById.get(selected.id)?.startMeters ?? 0)}–
+                {formatDistance(rangeById.get(selected.id)?.endMeters ?? 0)} ·{" "}
+                {getRoadDescriptor(selected)}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              <button type="button" className="btn btn-primary" onClick={() => void applyAvoidance()} disabled={avoiding}>
+            <div className="segment-detail-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void applyAvoidance()}
+                disabled={avoiding}
+              >
                 <Ban size={16} aria-hidden="true" />
                 {COPY.avoidRoad}
               </button>
@@ -234,6 +302,9 @@ export function RoadReviewPanel({ controller, onExit }: Props) {
             <h2 id="exclusions-heading" className="section-title">
               {COPY.activeExclusions}
             </h2>
+            {store.activeExclusions.length >= PRODUCT_LIMITS.maxExclusionLocations && (
+              <p className="inline-hint">{COPY.maxExclusionsReached}</p>
+            )}
             <div className="exclusion-list">
               {store.activeExclusions.map((ex) => (
                 <div key={ex.id} className="exclusion-item">

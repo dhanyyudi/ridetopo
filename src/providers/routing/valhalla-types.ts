@@ -24,6 +24,7 @@ export interface ValhallaRouteRequest {
   locations: ValhallaLocation[];
   costing: string;
   costing_options?: Record<string, ValhallaCostingOptions>;
+  units?: string;
   directions_options?: {
     units?: string;
   };
@@ -59,8 +60,17 @@ export interface ValhallaTrip {
   alternates?: ValhallaTrip[];
 }
 
+/**
+ * One entry of the top-level `alternates` list. Valhalla wraps each alternate
+ * in its own `trip` object; older builds emitted the trip fields inline.
+ */
+export interface ValhallaAlternateEntry extends ValhallaTrip {
+  trip?: ValhallaTrip;
+}
+
 export interface ValhallaRouteResponse {
   trip?: ValhallaTrip;
+  alternates?: ValhallaAlternateEntry[];
   error?: string;
 }
 

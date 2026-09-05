@@ -93,7 +93,13 @@ function interpolateAt(
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
-/** Resample a geometry at fixed distance intervals. */
+/**
+ * Resample a geometry at fixed distance intervals.
+ *
+ * Both the sample distances and the cumulative profile increase, so one
+ * walking cursor covers the whole geometry: a 500 km route must not turn into
+ * a scan of every vertex per sample.
+ */
 export function resampleByDistance(
   geometry: readonly Position[],
   intervalMeters: number,
@@ -102,15 +108,79 @@ export function resampleByDistance(
 
   const cumulative = cumulativeDistances(geometry);
   const total = cumulative[cumulative.length - 1]!;
+  const last = geometry[geometry.length - 1]!;
   const samples: Position[] = [];
 
+  let cursor = 0;
   for (let d = 0; d <= total; d += intervalMeters) {
-    samples.push(interpolateAt(geometry, cumulative, d));
+    while (cursor < cumulative.length - 2 && cumulative[cursor + 1]! <= d) {
+      cursor++;
+    }
+    samples.push(interpolateBetween(geometry, cumulative, cursor, d));
   }
-  if (samples[samples.length - 1] !== geometry[geometry.length - 1]) {
-    samples.push(geometry[geometry.length - 1]!);
+
+  const tail = samples[samples.length - 1];
+  if (!tail || tail[0] !== last[0] || tail[1] !== last[1]) {
+    samples.push(last);
   }
   return samples;
+}
+
+/** Interpolate at `distance` knowing the segment index it falls in. */
+function interpolateBetween(
+  geometry: readonly Position[],
+  cumulative: readonly number[],
+  index: number,
+  distance: number,
+): Position {
+  if (index >= geometry.length - 1) return geometry[geometry.length - 1]!;
+
+  const a = geometry[index]!;
+  const b = geometry[index + 1]!;
+  const segStart = cumulative[index]!;
+  const segEnd = cumulative[index + 1]!;
+  const span = segEnd - segStart || 1;
+  const t = (distance - segStart) / span;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
+/**
+ * Travelled distance of the point on `geometry` nearest to `point`. Used to
+ * turn a tap on the route into a position along it.
+ */
+export function distanceAlongRoute(
+  geometry: readonly Position[],
+  point: Position,
+): number {
+  if (geometry.length === 0) return 0;
+  if (geometry.length === 1) return 0;
+
+  const cumulative = cumulativeDistances(geometry);
+  let bestDistance = 0;
+  let bestGap = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < geometry.length - 1; i++) {
+    const a = geometry[i]!;
+    const b = geometry[i + 1]!;
+    const gap = pointToSegmentDistanceMeters(point, a, b);
+    if (gap >= bestGap) continue;
+
+    bestGap = gap;
+
+    const vx = b[0] - a[0];
+    const vy = b[1] - a[1];
+    const lenSq = vx * vx + vy * vy;
+    const t =
+      lenSq < 1e-24
+        ? 0
+        : Math.max(
+            0,
+            Math.min(1, ((point[0] - a[0]) * vx + (point[1] - a[1]) * vy) / lenSq),
+          );
+    bestDistance = cumulative[i]! + (cumulative[i + 1]! - cumulative[i]!) * t;
+  }
+
+  return bestDistance;
 }
 
 interface GridCell {
@@ -159,9 +229,12 @@ export function calculateOverlapRatio(
   outboundGeometry: readonly Position[],
 ): number {
   const cfg = ROUND_TRIP_CONFIG;
+  /* Same terminal zone the penalty shape uses, so scoring and penalising
+     agree on what counts as the shared start/finish area. */
+  const outboundLength = cumulativeDistances(outboundGeometry).at(-1) ?? 0;
   const trim = Math.min(
     cfg.terminalTrimMaximumMeters,
-    Math.max(cfg.terminalTrimMinimumMeters, 0),
+    Math.max(cfg.terminalTrimMinimumMeters, outboundLength * cfg.terminalTrimRatio),
   );
 
   const outboundTrimmed = trimGeometryTerminals(outboundGeometry, trim);

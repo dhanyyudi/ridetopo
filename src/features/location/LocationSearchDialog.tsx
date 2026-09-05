@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { COPY } from "@/content/id";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import type { GeocodingResult } from "@/providers/contracts";
 import { Search, X } from "lucide-react";
 
@@ -20,14 +21,16 @@ export function LocationSearchDialog({ open, onClose, onSelect, onSearch, offlin
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setResults([]);
       setError(null);
-      const t = setTimeout(() => inputRef.current?.focus(), 60);
-      return () => clearTimeout(t);
+      /* Focus the field the dialog exists for, before the trap looks. */
+      inputRef.current?.focus();
+      return undefined;
     }
     abortRef.current?.abort();
     return undefined;
@@ -79,6 +82,8 @@ export function LocationSearchDialog({ open, onClose, onSelect, onSearch, offlin
       role="presentation"
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="dialog-panel search-dialog"
         role="dialog"
         aria-modal="true"

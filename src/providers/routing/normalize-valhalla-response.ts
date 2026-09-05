@@ -3,6 +3,7 @@ import type { RouteLeg, ElevationSample } from "@/domain/route";
 import type { ValhallaRouteResponse, ValhallaLeg, ValhallaTrip } from "./valhalla-types";
 import { decodePolyline6 } from "@/lib/polyline6";
 import { ELEVATION_CONFIG } from "@/domain/route";
+import { mergeRouteLegs } from "@/services/routing/merge-legs";
 
 export class ValhallaResponseError extends Error {
   constructor(message: string) {
@@ -32,21 +33,44 @@ export function normalizeValhallaResponse(raw: ValhallaRouteResponse): readonly 
   return trip.legs.map((leg, index) => normalizeLeg(leg, index, trip));
 }
 
-export function normalizeAlternateTrips(raw: ValhallaRouteResponse): readonly RouteLeg[] {
-  const trip = raw.trip;
-  if (!trip || !trip.alternates || trip.alternates.length === 0) {
-    return [];
+/** The whole primary trip collapsed into one leg. */
+export function normalizeValhallaTrip(raw: ValhallaRouteResponse): RouteLeg {
+  return mergeRouteLegs(normalizeValhallaResponse(raw));
+}
+
+/**
+ * Valhalla has shipped two shapes for alternates: a list of trip wrappers at
+ * the top level of the response, and a list of trips nested under `trip`.
+ * Accept both so a server upgrade cannot silently drop every alternate.
+ */
+function collectAlternateTrips(raw: ValhallaRouteResponse): readonly ValhallaTrip[] {
+  const trips: ValhallaTrip[] = [];
+
+  for (const entry of raw.alternates ?? []) {
+    if (!entry) continue;
+    const candidate: ValhallaTrip = entry.trip ?? entry;
+    if (candidate.legs && candidate.legs.length > 0) trips.push(candidate);
   }
 
+  for (const entry of raw.trip?.alternates ?? []) {
+    if (entry?.legs && entry.legs.length > 0) trips.push(entry);
+  }
+
+  return trips;
+}
+
+export function normalizeAlternateTrips(raw: ValhallaRouteResponse): readonly RouteLeg[] {
   const alternates: RouteLeg[] = [];
-  for (const alt of trip.alternates) {
-    if (!alt.legs || alt.legs.length === 0) continue;
+
+  for (const trip of collectAlternateTrips(raw)) {
     try {
-      alternates.push(normalizeLeg(alt.legs[0]!, alternates.length, alt));
+      const legs = trip.legs!.map((leg, index) => normalizeLeg(leg, index, trip));
+      alternates.push(mergeRouteLegs(legs));
     } catch {
       /* skip invalid alternate */
     }
   }
+
   return alternates;
 }
 
@@ -61,8 +85,13 @@ function normalizeLeg(leg: ValhallaLeg, index: number, trip: ValhallaTrip): Rout
     throw new ValhallaResponseError("Geometri rute terlalu pendek.");
   }
 
-  const distanceMeters = (leg.summary?.length ?? trip.summary?.length ?? 0) * 1000;
-  const durationSeconds = leg.summary?.time ?? trip.summary?.time ?? 0;
+  /* The trip summary describes the whole trip, so it may only stand in for a
+     leg when the trip has exactly one. */
+  const singleLeg = (trip.legs?.length ?? 1) === 1;
+  const distanceMeters =
+    (leg.summary?.length ?? (singleLeg ? trip.summary?.length : undefined) ?? 0) * 1000;
+  const durationSeconds =
+    leg.summary?.time ?? (singleLeg ? trip.summary?.time : undefined) ?? 0;
 
   if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
     throw new ValhallaResponseError("Jarak rute tidak valid.");
@@ -95,8 +124,20 @@ export function buildElevationSamples(
 ): readonly ElevationSample[] {
   if (raw.length === 0 || legLengthMeters <= 0) return [];
 
+  /* An array whose span cannot cover the leg — in either direction — cannot be
+     mapped to route distance. Per the graceful-degradation rules the route
+     stays valid and elevation simply becomes unavailable, so return no
+     samples instead of rejecting the whole response. */
+  const arraySpan = (raw.length - 1) * interval;
+  /* One missing sample plus rounding — never a share of route length. A
+     percentage would scale with the route and let a 500 km ride lose five
+     kilometres of profile while still reporting route totals. */
+  const tolerance = interval * 2;
+  if (Math.abs(arraySpan - legLengthMeters) > tolerance) {
+    return [];
+  }
+
   const samples: ElevationSample[] = [];
-  const tolerance = interval;
 
   for (let i = 0; i < raw.length; i++) {
     const distanceMeters = Math.min(i * interval, legLengthMeters);
@@ -108,12 +149,6 @@ export function buildElevationSamples(
       distanceMeters,
       elevationMeters: isValid ? value : null,
     });
-  }
-
-  /* Reject arrays whose span cannot reasonably map to the leg length */
-  const arraySpan = (raw.length - 1) * interval;
-  if (arraySpan - legLengthMeters > tolerance) {
-    throw new ValhallaResponseError("Data elevasi tidak cocok dengan panjang rute.");
   }
 
   return samples;

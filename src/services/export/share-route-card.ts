@@ -14,14 +14,23 @@ export async function shareRouteCard(file: File): Promise<void> {
 }
 
 export function downloadRouteCard(file: File, filename: string): void {
-  const url = URL.createObjectURL(file);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerDownload(file, filename);
+}
+
+/**
+ * Revoking the object URL in the same tick can cancel the download in Firefox
+ * and WebKit, so release it on the next tick instead.
+ */
+export function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function generateImageFilename(route: { input: { locations: readonly { label: string }[] } }): string {

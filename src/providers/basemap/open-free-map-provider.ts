@@ -15,5 +15,15 @@ export function getBasemapStyleUrl(): string {
   return config.basemapStyleUrl;
 }
 
-export const BASEMAP_ATTRIBUTION =
-  '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors | <a href="https://openfreemap.org">OpenFreeMap</a>';
+/**
+ * Structured so the UI can render real links. A markup string rendered as a
+ * text node showed the raw tags to every user.
+ */
+export const BASEMAP_ATTRIBUTION_LINKS = [
+  { label: "OpenStreetMap", href: "https://openstreetmap.org/copyright" },
+  { label: "OpenFreeMap", href: "https://openfreemap.org" },
+] as const;
+
+/** Plain-text form for canvases and files, which cannot hold links. */
+export const BASEMAP_ATTRIBUTION_TEXT =
+  "Route data \u00a9 OpenStreetMap contributors \u2014 openstreetmap.org/copyright";

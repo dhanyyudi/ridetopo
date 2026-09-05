@@ -1,5 +1,6 @@
 import type { RouteCardData, RouteCardAssets } from "@/domain/export";
 import type { Position } from "@/domain/geo";
+import { COPY } from "@/content/id";
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1920;
@@ -142,7 +143,7 @@ async function doRender(data: RouteCardData, assets: RouteCardAssets): Promise<B
   /* Rencana rute */
   ctx.fillStyle = TEXT_COLOR;
   ctx.font = `700 32px "${assets.fontFamily}"`;
-  ctx.fillText("RENCANA RUTE", CARD_PADDING, CARD_PADDING + 30);
+  ctx.fillText(COPY.planTitle, CARD_PADDING, CARD_PADDING + 30);
 
   /* RideTopo mark */
   try {
@@ -153,7 +154,7 @@ async function doRender(data: RouteCardData, assets: RouteCardAssets): Promise<B
 
   /* Jarak */
   ctx.font = `500 24px "${assets.fontFamily}"`;
-  ctx.fillText("Jarak", CARD_PADDING, CARD_PADDING + 200);
+  ctx.fillText(COPY.routeDistance, CARD_PADDING, CARD_PADDING + 200);
   ctx.font = `700 48px "${assets.fontFamily}"`;
   ctx.fillText(data.distanceLabel, CARD_PADDING, CARD_PADDING + 262);
 
@@ -161,7 +162,7 @@ async function doRender(data: RouteCardData, assets: RouteCardAssets): Promise<B
   let cursorY = CARD_PADDING + 340;
   if (data.elevationGainLabel) {
     ctx.font = `500 24px "${assets.fontFamily}"`;
-    ctx.fillText("Elevasi naik", CARD_PADDING, cursorY);
+    ctx.fillText(COPY.elevationGain, CARD_PADDING, cursorY);
     ctx.font = `700 48px "${assets.fontFamily}"`;
     ctx.fillText(data.elevationGainLabel, CARD_PADDING, cursorY + 62);
     cursorY += 140;
@@ -169,7 +170,7 @@ async function doRender(data: RouteCardData, assets: RouteCardAssets): Promise<B
 
   /* Estimasi waktu */
   ctx.font = `500 24px "${assets.fontFamily}"`;
-  ctx.fillText("Estimasi waktu", CARD_PADDING, cursorY);
+  ctx.fillText(COPY.imageTimeLabel, CARD_PADDING, cursorY);
   ctx.font = `700 48px "${assets.fontFamily}"`;
   ctx.fillText(data.estimatedTimeLabel, CARD_PADDING, cursorY + 62);
 
@@ -186,16 +187,12 @@ async function doRender(data: RouteCardData, assets: RouteCardAssets): Promise<B
   /* RideTopo wordmark near the bottom */
   ctx.fillStyle = TEXT_COLOR;
   ctx.font = `700 44px "${assets.fontFamily}"`;
-  ctx.fillText("RideTopo", CARD_PADDING, CARD_HEIGHT - 170);
+  ctx.fillText(COPY.appName, CARD_PADDING, CARD_HEIGHT - 170);
 
   /* OSM attribution */
   ctx.font = `400 20px "${assets.fontFamily}"`;
   ctx.fillStyle = "rgba(255,255,255,0.72)";
-  ctx.fillText(
-    "Route data \u00a9 OpenStreetMap contributors \u2014 openstreetmap.org/copyright",
-    CARD_PADDING,
-    CARD_HEIGHT - CARD_PADDING,
-  );
+  ctx.fillText(COPY.imageAttribution, CARD_PADDING, CARD_HEIGHT - CARD_PADDING);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
