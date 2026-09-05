@@ -203,8 +203,9 @@ di halaman Privasi dalam aplikasi.
 
 ## Keamanan
 
-Laporkan kerentanan sesuai [SECURITY.md](./SECURITY.md). Jangan membuka
-issue publik untuk masalah keamanan.
+Laporkan kerentanan sesuai [SECURITY.md](./SECURITY.md): buka issue dan
+beri label `security`, tanpa menyertakan detail proof-of-concept
+sensitif di sana — kanal tindak lanjut yang aman akan disediakan.
 
 ## Lisensi
 
