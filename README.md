@@ -12,8 +12,8 @@ P0 telah diimplementasikan secara lengkap pada branch lokal
 `fix/audit-remediation-2026-09`. Audit menyeluruh 5 September 2026
 menemukan dan menutup lima temuan blocker serta sepuluh temuan major,
 masing-masing dengan tes regresi. Seluruh perjalanan pengguna terbukti
-lewat 190 tes unit/integrasi dan 105 tes E2E (35 kasus × Chromium,
-Firefox, WebKit).
+lewat 192 tes unit/integrasi dan 109 tes E2E (35 kasus × Chromium,
+Firefox, WebKit, plus 4 kasus degradasi pada browser tanpa WebGL).
 
 Kontrak Valhalla live diverifikasi ulang pada 5 September 2026.
 

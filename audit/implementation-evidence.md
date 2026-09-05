@@ -27,7 +27,7 @@ seluruhnya berada di sisi QA perangkat nyata dan pengukuran kinerja lapangan.
 | `npm run test` | 0 | 18 file, **190 tes** |
 | `npm run build` | 0 | dist statis, tanpa source map |
 | `npm run verify:build` | 0 | 41 pemeriksaan lolos |
-| `npm run test:e2e` | 0 | **105 tes: 35 kasus × 3 browser** |
+| `npm run test:e2e` | 0 | **109 tes: 35 kasus × 3 browser + 4 kasus degradasi tanpa WebGL** |
 | `npm audit --omit=dev --audit-level=high` | 0 | 0 kerentanan produksi |
 | `npm audit --audit-level=critical` | 0 | lolos; satu *high* di dev tree (`fast-uri`) |
 | `npm run verify` (rangkaian penuh) | 0 | seluruh gate berurutan lolos |
@@ -43,6 +43,10 @@ seluruhnya berada di sisi QA perangkat nyata dan pengukuran kinerja lapangan.
 | offline-export (2) | pass | pass | pass |
 | accessibility (10, termasuk axe) | pass | pass | pass |
 | screenshots (7) | pass | pass | pass |
+
+Ditambah proyek `firefox-no-webgl` (4 kasus): browser tanpa WebGL sama sekali —
+perangkat lama atau driver yang masuk blocklist. MapLibre tidak dapat mulai di
+sana, dan aplikasi harus tetap dapat dipakai.
 
 Axe dijalankan terhadap composer; tidak ada pelanggaran serious/critical.
 
@@ -72,6 +76,7 @@ Axe dijalankan terhadap composer; tidak ada pelanggaran serious/critical.
 | M8 | Parsing `alternates` hanya mengenali bentuk bersarang, sehingga nol alternate pernah terbaca | Bentuk pembungkus `trip` di level atas diterima; **dikonfirmasi terhadap server live 5 September 2026** (lihat verifikasi kontrak live); mock E2E memakai bentuk tersebut |
 | M9 | Marker A/B tidak terlihat di screenshot bukti | **Bukan cacat produk** — artefak mock: geometri fixture tidak berhubungan dengan koordinat A/B, jadi marker berada di luar bounds rute. Tes E2E membuktikan marker ada dan terlihat |
 | M10 | `/offline-probe.txt` tidak pernah ada; HEAD ke URL 404 setiap 30 detik | Probe memakai `/config.json` |
+| M11 | **Overlay peta gagal menutupi seluruh dialog picker.** `.map-fallback` absolut dan dipasang sebagai sibling kanvas, sehingga konteks posisinya adalah dialog `position: fixed` — tombol Batal dan Simpan tidak dapat diklik. Hanya terjadi ketika WebGL tidak tersedia, jadi tidak pernah terlihat | Fallback dipindah ke dalam area kanvas; pesan diganti agar mengarahkan ke pencarian, bukan menyebut rute; ditutup suite degradasi `firefox-no-webgl` |
 
 ### Penyimpangan spesifikasi yang ditutup
 

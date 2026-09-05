@@ -29,6 +29,7 @@ export const COPY = {
   editRoute: "Ubah rute",
   mapPickTitle: "Pilih di peta",
   mapPickHint: "Ketuk peta untuk memilih lokasi.",
+  mapPickUnavailable: "Peta tidak dapat ditampilkan. Gunakan pencarian lokasi untuk menentukan titik.",
   mapPickSave: "Simpan",
   mapPickCancel: "Batal",
   mapPickLabel: "Titik pilihan",

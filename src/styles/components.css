@@ -581,6 +581,11 @@
   overflow: hidden;
 }
 
+.map-picker-surface {
+  position: absolute;
+  inset: 0;
+}
+
 .map-picker-footer {
   display: flex;
   gap: var(--space-3);

@@ -114,8 +114,13 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
         <p className="map-picker-hint">{COPY.mapPickHint}</p>
       </div>
 
-      <div className="map-picker-canvas" ref={containerRef} data-map-ready={mapReady ? "true" : "false"} />
-      {mapError && <MapFallback />}
+      <div className="map-picker-canvas" data-map-ready={mapReady ? "true" : "false"}>
+        <div className="map-picker-surface" ref={containerRef} />
+        {/* Inside the canvas, not beside it: the fallback is absolutely
+            positioned, and as a sibling it covered the whole fixed dialog
+            including Batal and Simpan. */}
+        {mapError && <MapFallback message={COPY.mapPickUnavailable} />}
+      </div>
 
       <div className="map-picker-footer">
         <button type="button" className="btn btn-secondary" onClick={() => cancelRef.current()}>
