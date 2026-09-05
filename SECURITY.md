@@ -2,14 +2,22 @@
 
 ## Melaporkan Kerentanan
 
-Untuk melaporkan kerentanan keamanan, buka issue pada repositori
-GitHub dan beri label "security". Jangan menyertakan detail
-proof-of-concept sensitif di issue publik — kami akan menyediakan
-kanal tindak lanjut yang aman.
+Gunakan **[private vulnerability reporting](https://github.com/dhanyyudi/ridetopo/security/advisories/new)**
+GitHub. Laporan masuk secara privat ke maintainer, sehingga detail
+proof-of-concept aman disertakan sejak awal.
+
+Mohon sertakan: langkah reproduksi, dampak yang Anda perkirakan, dan
+versi atau commit yang diuji.
+
+Jangan membuka issue publik untuk kerentanan. Issue publik dapat
+membocorkan masalah sebelum ada perbaikan; untuk pertanyaan keamanan
+yang bersifat umum dan tidak sensitif, issue biasa tetap boleh dipakai.
+
+Kami berusaha membalas dalam 7 hari.
 
 ## Versi yang Didukung
 
-Hanya commit terbaru pada branch main yang didukung untuk pembaruan
+Hanya commit terbaru pada branch default yang didukung untuk pembaruan
 keamanan.
 
 ## Kode Publik

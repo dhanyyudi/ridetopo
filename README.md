@@ -203,9 +203,8 @@ di halaman Privasi dalam aplikasi.
 
 ## Keamanan
 
-Laporkan kerentanan sesuai [SECURITY.md](./SECURITY.md): buka issue dan
-beri label `security`, tanpa menyertakan detail proof-of-concept
-sensitif di sana — kanal tindak lanjut yang aman akan disediakan.
+Laporkan kerentanan lewat [private vulnerability reporting](https://github.com/dhanyyudi/ridetopo/security/advisories/new)
+GitHub, bukan issue publik. Rinciannya di [SECURITY.md](./SECURITY.md).
 
 ## Lisensi
 
