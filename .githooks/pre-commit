@@ -8,7 +8,7 @@ git diff --cached --name-only --diff-filter=ACMR -z > "$staged_paths_file"
 
 while IFS= read -r -d '' path; do
   case "$path" in
-    plan/*|.superpowers/*|docs/superpowers/plans/*|.codex/*|.agents/*)
+    plan/*|.superpowers/*|docs/superpowers/plans/*|.codex/*|.agents/*|audit/*|AGENTS.md)
       echo "BLOCKED: private planning/agent file is staged: $path" >&2
       blocked=1
       ;;

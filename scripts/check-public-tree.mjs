@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
 
-const PRIVATE_DIRS = ["plan/", ".superpowers/", "docs/superpowers/plans/", ".codex/", ".agents/"];
+const PRIVATE_DIRS = ["plan/", ".superpowers/", "docs/superpowers/plans/", ".codex/", ".agents/", "audit/"];
+/* Maintainer-only files that must never be tracked in the public repository. */
+const PRIVATE_FILES = ["AGENTS.md"];
 
 const CREDENTIAL_NAMES = [
   ".env", ".dev.vars", ".npmrc", ".yarnrc.yml",
@@ -38,6 +40,11 @@ for (const file of files) {
       console.error(`BLOCKED: private path tracked: ${file}`);
       exitCode = 1;
     }
+  }
+
+  if (PRIVATE_FILES.includes(file)) {
+    console.error(`BLOCKED: maintainer-only file tracked: ${file}`);
+    exitCode = 1;
   }
 
   const basename = file.split("/").pop() || "";
