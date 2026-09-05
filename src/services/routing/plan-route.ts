@@ -2,6 +2,7 @@ import type { RoutePlanInput, PlannedRoute } from "@/domain/route";
 import type { RoutingProvider, ProviderRouteRequest } from "@/providers/contracts";
 import { PRODUCT_LIMITS, ELEVATION_CONFIG } from "@/domain/route";
 import { hashRoute } from "@/lib/hash-route";
+import { straightLineDistance, distanceBetween } from "@/domain/geo";
 import { analyzeElevation } from "@/domain/elevation";
 import {
   planRoundTrip,
@@ -27,6 +28,12 @@ export async function planRoute(
   signal: AbortSignal,
 ): Promise<PlannedRoute> {
   const orderedPositions = input.locations.map((loc) => loc.position);
+
+  /* Straight-line length is a lower bound on the ride, so anything over the
+     cap here cannot possibly fit. Reject before spending a route request. */
+  if (straightLineLowerBound(input) > PRODUCT_LIMITS.maxRouteMeters) {
+    throw new RouteError("Maksimal total rute 500 km.");
+  }
 
   const request: ProviderRouteRequest = {
     locations: orderedPositions,
@@ -104,4 +111,19 @@ export async function planRoute(
     limitedReturnAlternatives: limited,
     createdAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Shortest conceivable length of the requested ride: the straight lines
+ * between its points, plus the way back when the round trip is on.
+ */
+export function straightLineLowerBound(input: RoutePlanInput): number {
+  const positions = input.locations.map((loc) => loc.position);
+  if (positions.length < 2) return 0;
+
+  let total = straightLineDistance(positions);
+  if (input.returnToStart) {
+    total += distanceBetween(positions[positions.length - 1]!, positions[0]!);
+  }
+  return total;
 }

@@ -13,6 +13,7 @@ import { MapPicker } from "@/features/location/MapPicker";
 import { ImagePreviewDialog } from "@/features/export/ImagePreviewDialog";
 import { MapCanvas, type MapMarker } from "@/features/map/MapCanvas";
 import { createInitialLocations } from "@/domain/location";
+import { loadPreferences } from "@/services/persistence/preference-storage";
 import { getRouteElevation } from "@/services/routing/route-elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import {
@@ -147,11 +148,18 @@ function AppInner() {
     };
   }, []);
 
-  /* Initial A/B slots */
+  /* Initial A/B slots and remembered preferences */
   useEffect(() => {
     const state = useRoutePlannerStore.getState();
     if (state.locations.length === 0) {
       state.setLocations(createInitialLocations());
+    }
+
+    const preferences = loadPreferences();
+    if (preferences) {
+      state.setProfile(preferences.profile);
+      state.setRoadPreference(preferences.roadPreference);
+      state.setTerrainPreference(preferences.terrainPreference);
     }
   }, []);
 

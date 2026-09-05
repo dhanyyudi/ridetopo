@@ -227,12 +227,18 @@
     order: 0;
   }
 
-  .app-panel {
+  /* Scoped to .app-layout so it outranks the compact `.layout-* .app-panel`
+     rules above; a bare `.app-panel` here loses on specificity and the panel
+     silently takes half the viewport instead of the 400-440 px column. */
+  .app-layout .app-panel {
     width: clamp(var(--panel-wide-min), 30vw, var(--panel-wide-max));
     flex: 0 0 auto;
     border-right: 1px solid var(--color-border);
     background: var(--color-surface);
     height: 100%;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .app-map {

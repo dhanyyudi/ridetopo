@@ -26,6 +26,21 @@ test.describe("Shell accessibility", () => {
     });
   }
 
+  test("the wide layout keeps the side panel at 400-440 px", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+
+    /* The design system fixes the persistent desktop panel; without this the
+       compact `.layout-* .app-panel` rules win on specificity and the panel
+       stretches to half the viewport. */
+    const width = await page
+      .locator(".app-panel")
+      .evaluate((el) => el.getBoundingClientRect().width);
+
+    expect(width).toBeGreaterThanOrEqual(400);
+    expect(width).toBeLessThanOrEqual(440);
+  });
+
   test("navigates to Privacy and About through the menu", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");

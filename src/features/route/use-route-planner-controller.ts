@@ -12,6 +12,7 @@ import { planRoute } from "@/services/routing/plan-route";
 import { routeEncodedShape } from "@/services/routing/merge-legs";
 import { mergeExclusionPositions } from "@/services/avoidance/build-exclusions";
 import { draftRepository } from "@/services/persistence/draft-repository";
+import { savePreferences } from "@/services/persistence/preference-storage";
 import { buildDraftFromRoute } from "@/services/persistence/draft-serialization";
 import { PRODUCT_LIMITS } from "@/domain/route";
 import { COPY } from "@/content/id";
@@ -293,6 +294,16 @@ export function useRoutePlannerController() {
       if (change.terrainPreference !== undefined) state.setTerrainPreference(change.terrainPreference);
       if (change.returnToStart !== undefined) state.setReturnToStart(change.returnToStart);
       if (change.returnMode !== undefined) state.setReturnMode(change.returnMode);
+
+      /* Only the lightweight UI preferences persist; where someone rides
+         stays in the validated draft. */
+      const after = useRoutePlannerStore.getState();
+      savePreferences({
+        profile: after.profile,
+        roadPreference: after.roadPreference,
+        terrainPreference: after.terrainPreference,
+      });
+
       rerouteIfValid();
     },
     [rerouteIfValid],
