@@ -9,12 +9,16 @@ jalan, ekspor GPX, dan berbagi gambar rute.
 ## Status
 
 P0 telah diimplementasikan secara lengkap pada branch lokal
-`fix/p0-audit-remediation`. Seluruh perjalanan pengguna terbukti lewat
-uji E2E yang dimock di Chromium, Firefox, dan WebKit.
+`fix/audit-remediation-2026-09`. Audit menyeluruh 5 September 2026
+menemukan dan menutup lima temuan blocker serta sepuluh temuan major,
+masing-masing dengan tes regresi. Seluruh perjalanan pengguna terbukti
+lewat 190 tes unit/integrasi dan 33 kasus E2E yang dimock di Chromium.
 
-**Belum production-ready.** Lihat [audit/implementation-evidence.md](./audit/implementation-evidence.md)
-untuk detail. Blocker eksternal yang tersisa berada di sisi homeserver
-Valhalla dan bukan pada kode frontend.
+**Belum production-ready.** Yang masih terbuka: QA perangkat Android dan
+iOS, pengukuran LCP/INP/CLS di perangkat nyata, dan menjalankan ulang
+matriks E2E di Firefox serta WebKit. Lihat
+[audit/implementation-evidence.md](./audit/implementation-evidence.md)
+untuk detail lengkap.
 
 ## Fitur P0
 
@@ -24,13 +28,15 @@ Valhalla dan bukan pada kode frontend.
 - **Rute pulang-pergi** dengan dua mode: *Lewat jalan lain* (default)
   dan *Pulang tercepat*
 - **Analisis elevasi** 30 m: interpolasi terbatas, median filter,
-  gain/loss, dan klasifikasi medan (menanjak/landai/menurun)
+  gain/loss, dan klasifikasi medan (menanjak/landai/menurun) dengan
+  legenda bernama serta kursor grafik yang tercermin di peta
 - **Tinjauan ruas jalan** dengan nama, kelas, permukaan, dan
   penghindaran ruas/koridor eksplisit
 - **Ekspor GPX** dengan geometri lengkap tanpa penyederhanaan
 - **Gambar Story** 1080×1920 tanpa basemap dengan preview, Web Share,
   dan fallback unduh PNG
-- **Satu draf lokal** dengan konfirmasi pemulihan dan penghapusan
+- **Satu draf lokal** dengan konfirmasi pemulihan dan penghapusan;
+  preferensi sepeda/jalan/medan diingat di `localStorage`
 - **Dukungan offline**: shell, draf, GPX, dan gambar tanpa basemap
 - PWA yang dapat dipasang dengan ikon dan font self-hosted
 

@@ -1,58 +1,87 @@
-# Bukti Implementasi — RideTopo P0 Remediation
+# Bukti Implementasi — RideTopo P0
 
-**Branch:** fix/p0-audit-remediation
-**HEAD:** `a0456f3` (HEAD terverifikasi saat matriks final dijalankan ulang pada 22 Agustus 2026; lihat `git rev-parse HEAD`)
-**Tanggal audit:** 13 Agustus 2026
+**Branch:** fix/audit-remediation-2026-09
+**HEAD:** `dcb8e3f`
+**Audit terakhir:** 5 September 2026 (audit ulang menyeluruh + remediasi)
+**Audit sebelumnya:** 13 dan 22 Agustus 2026
 
 ## Ringkasan
 
-Rencana remediasi empat paket kerja dieksekusi penuh di atas baseline
-audit `ce2d53d`. Seluruh perjalanan pengguna P0 kini terhubung dan
-terbukti melalui uji otomatis di tiga browser. Blocker eksternal yang
-tersisa seluruhnya berada di sisi homeserver Valhalla.
+P0 diimplementasikan penuh dan diaudit tiga kali. Audit 5 September 2026
+menemukan lima temuan blocker dan sepuluh temuan major yang **lolos dari
+seluruh gate otomatis** karena setiap fixture dan mock hanya mewakili satu
+bentuk respons. Semuanya sudah diperbaiki beserta tes regresinya; jumlah tes
+naik dari 131 menjadi 190 unit/integrasi dan dari 29 menjadi 33 kasus E2E.
 
-## Commit Remediasi
+Blocker eksternal yang tersisa berada di sisi verifikasi perangkat nyata dan
+satu kontrak live yang belum bisa dibuktikan dari sisi frontend.
 
-| Commit | Pesan |
-|---|---|
-| `fdd73c2` | fix: connect complete route planning journey |
-| `3301655` | fix: correct routing elevation and road avoidance |
-| `0efc10c` | fix: complete secure offline and export experience |
-| *(final)* | test: prove complete P0 release candidate |
-| `a0456f3` | fix: align round-trip penalty shape with live contract and close audit gaps |
-
-## Matriks Perintah
+## Matriks Perintah (5 September 2026)
 
 | Perintah | Exit | Hasil |
 |---|---|---|
-| `rg 'TODO\|FIXME\|no-op' src tests` | 0 | tidak ada hit produksi |
-| `git diff --check` | 0 | bersih |
-| `npm ci` | 0 | lockfile valid |
-| `npm run build:icons` | 0 | 6 raster icon dari master SVG |
 | `npm run check:public` | 0 | tidak ada jalur privat/kredensial |
 | `npm run lint` | 0 | max-warnings=0 |
 | `npm run typecheck` | 0 | strict TS |
-| `npm run test` | 0 | 131 tes (unit + integrasi) |
+| `npm run test` | 0 | 18 file, **190 tes** |
 | `npm run build` | 0 | dist statis, tanpa source map |
 | `npm run verify:build` | 0 | 41 pemeriksaan lolos |
-| `npm run test:e2e` | 0 | 87 tes: 29 kasus × 3 browser |
-| `npm run audit:security` | 0 | 0 kerentanan (high/critical) |
+| `npm run test:e2e` (Chromium) | 0 | **33 kasus** |
+| `npm audit --omit=dev --audit-level=high` | 0 | 0 kerentanan produksi |
+| `npm audit --audit-level=critical` | 0 | lolos; satu *high* di dev tree (`fast-uri`) |
+| `git log --all --name-only` | — | tidak ada `plan/`, `.superpowers/`, `.env`, kredensial |
 
-## Matriks Browser E2E
+Firefox dan WebKit **tidak dijalankan ulang** pada 5 September: browser
+Playwright untuk keduanya tidak terpasang di mesin audit. Matriks tiga-browser
+dari 22 Agustus tidak dapat direproduksi dan karena itu tidak diklaim ulang.
 
-| Kasus | Chromium | Firefox | WebKit |
-|---|---|---|---|
-| route-planning (4) | pass | pass | pass |
-| round-trip (4) | pass | pass | pass |
-| road-review (4) | pass | pass | pass |
-| offline-export (2) | pass | pass | pass |
-| accessibility (8, termasuk axe) | pass | pass | pass |
-| screenshots (7) | pass | — | — |
+## Audit 5 September 2026 — temuan dan perbaikan
 
-Axe dijalankan terhadap composer; tidak ada pelanggaran
-serious/critical. Uji focus memastikan focus berpindah ke elemen
-focusable dengan ring terlihat. Uji manifest memastikan setiap ikon
-dapat diambil.
+### Blocker
+
+| # | Temuan | Perbaikan |
+|---|---|---|
+| B1 | **Rute dengan titik antara terpotong.** Valhalla mengembalikan satu leg per pasangan lokasi berurutan; `planRoute` hanya memakai `legs[0]`, sehingga jarak, durasi, geometri, elevasi, GPX, dan kartu gambar hanya menggambarkan A → titik antara pertama. Terbukti runtime: respons 10 km + 8 km menghasilkan 10.000 m. | Leg digabung menjadi satu trip di dalam batas provider (`merge-legs.ts`): geometri disambung tanpa menggandakan simpul temu, jarak/durasi dijumlahkan, elevasi digeser ke satu sumbu, shape gabungan di-encode ulang. Fixture dan mock E2E multi-leg ditambahkan. |
+| B2 | **Elevasi round trip salah di panel hasil.** Sampel leg pulang dimulai lagi dari 0 dan digabung tanpa offset, sehingga sumbu jarak tidak monoton, grafik melipat balik, dan angka naik/turun berbeda dari yang dipakai kartu gambar. | Satu analisis elevasi per rute (`route-elevation.ts`), memakai sumbu kumulatif gabungan yang sama dengan GPX. |
+| B3 | **Ketuk rute di peta tidak berfungsi.** Handler tidak pernah dipasang, dan handler-nya membaca properti fitur yang tidak pernah ada pada sumber GeoJSON. | Ketukan diproyeksikan ke geometri rute (`distanceAlongRoute`). Di mode tinjau, ketukan memilih ruas atau batas koridor berikutnya, persis seperti daftar. |
+| B4 | **Peta kosong saat mode Tinjau ruas jalan.** Geometri di-null-kan dan overlay seleksi tidak pernah dikirim. | Rute tetap tampil sebagai satu garis teal dengan ruas terpilih disorot oranye; peta hasil diwarnai per medan. |
+| B5 | **Makna medan hanya lewat warna.** Tidak ada legenda; tiga kata medan terdefinisi tapi tidak pernah dipakai. | Legenda bernama dengan ikon dan swatch, plus grafik elevasi yang kini menjadi slider dengan kursor pointer dan keyboard yang dicerminkan di peta. |
+
+### Major
+
+| # | Temuan | Perbaikan |
+|---|---|---|
+| M1 | Atribusi peta dirender sebagai teks HTML mentah dan disembunyikan dari screen reader | Tautan React sungguhan, tanpa `aria-hidden` |
+| M2 | Draft menyimpan metadata ruas milik rute sebelumnya (snapshot dibaca sebelum reset) | Draft dibangun dari store terkini; tes regresi ditambahkan |
+| M3 | Panel desktop 655–720 px, bukan 400–440 px (aturan wide kalah spesifisitas) | Aturan di-scope ke `.app-layout`; dijaga tes E2E |
+| M4 | Array elevasi hanya divalidasi bila terlalu panjang; array terlalu pendek diterima dan totalnya disajikan sebagai total rute | Validasi dua arah, dan sampel yang tidak dapat dipetakan dibuang tanpa membatalkan rute; `analyzeElevation` kini memakai panjang rute sebagai gerbang kelengkapan |
+| M5 | Downsample 50 exclusion tidak ada di jalur produksi (`.slice`), modul teruji tidak terpakai | Penggabungan dan downsample merata lewat modul teruji |
+| M6 | Dua algoritma O(n²): resampling overlap dan penulisan GPX | Keduanya berjalan dengan kursor tunggal; dijaga tes anti-regresi |
+| M7 | Tinjau ruas dan avoidance hanya mencakup leg berangkat | Keduanya bekerja pada geometri gabungan; rentang km dari profil kumulatif |
+| M8 | Parsing `alternates` hanya mengenali bentuk bersarang | Bentuk pembungkus `trip` di level atas — yang dikembalikan server live — juga diterima; mock E2E memakai bentuk tersebut |
+| M9 | Marker A/B tidak terlihat di screenshot bukti | **Bukan cacat produk** — artefak mock: geometri fixture tidak berhubungan dengan koordinat A/B, jadi marker berada di luar bounds rute. Tes E2E membuktikan marker ada dan terlihat |
+| M10 | `/offline-probe.txt` tidak pernah ada; HEAD ke URL 404 setiap 30 detik | Probe memakai `/config.json` |
+
+### Penyimpangan spesifikasi yang ditutup
+
+- Preferensi profil/jalan/medan kini bertahan di `localStorage` (FR-DRAFT-01).
+  Tidak ada data lokasi di sana; lokasi, exclusion, geometri, dan state round
+  trip tetap di draft IndexedDB tervalidasi.
+- Cache sesi untuk query identik dan gerbang satu permintaan/detik yang benar-benar
+  berurutan (FR-GEO-02). Header `User-Agent` dihapus: browser menolak menyetelnya.
+- Precheck jarak garis lurus 500 km sebelum request dikirim (FR-LOC-04).
+- Pewarnaan medan pada polyline peta hasil (FR-ELEV-05).
+- Cross-highlight chart ↔ peta lewat pointer dan keyboard (FR-ELEV-05).
+- Rentang km ruas dihitung dari jarak kumulatif, bukan proporsi indeks (FR-ROAD-02).
+- Batas koridor ditampilkan dalam kilometer, dan dapat dipilih dari daftar
+  maupun peta (FR-AVOID-03).
+- Fallback ruas tanpa metadata dirender persis seperti spesifikasi (FR-ROAD-02).
+- Toggle round trip muncul setelah A dan B valid (FR-ROUNDTRIP-01).
+- Focus trap pada map picker, dialog pencarian, dan pratinjau gambar (§24).
+- Penolakan izin lokasi menjadi pesan inline di dekat kontrol lokasi, bukan
+  error routing (FR-LOC-02).
+- Seluruh string antarmuka berasal dari `src/content/id.ts`; tidak ada kunci
+  yang tidak terpakai dan tidak ada duplikasi teks kelas jalan.
 
 ## Screenshot Publik
 
@@ -64,10 +93,10 @@ dapat diambil.
 - `audit/screenshots/result-1440.png`
 - `audit/screenshots/road-review-1440.png`
 
-Diambil dari build produksi. Desktop menampilkan panel persisten
-400–440 px plus peta; mobile memakai hierarki peta + sheet.
+Diambil dari build produksi pada 5 September 2026. Desktop menampilkan panel
+persisten 400–440 px plus peta; mobile memakai hierarki peta + sheet.
 
-## Pemeriksaan Live Provider (read-only, 13 Agustus 2026)
+## Pemeriksaan Live Provider (read-only, 13 dan 22 Agustus 2026)
 
 | Pemeriksaan | Hasil |
 |---|---|
@@ -78,69 +107,56 @@ Diambil dari build produksi. Desktop menampilkan panel persisten
 | `/trace_attributes` edge_walk | OK — 140 edge; kelas `service_other` diamati dan dipetakan |
 | OpenFreeMap style + CORS | OK — 200, `access-control-allow-origin: *` |
 | Nominatim Indonesia submit-only | OK — hasil Monas terfilter `countrycodes=id` |
-| **CORS preflight `OPTIONS /route`** | **DIPERBAIKI 22 Agustus 2026** — Nginx Proxy Manager kini men-short-circuit `OPTIONS` untuk host `valhalla.dhanypedia.it.com` dengan 204 + header `Access-Control-Allow-Origin/Methods/Headers/Max-Age` (konfig di `/data/nginx/custom/server_proxy.conf`, guard `$host` agar 44 host lain tidak terpengaruh). Preflight terverifikasi 204 via curl. |
-| **`linear_cost_factors`** | **DIPERBAIKI 22 Agustus 2026** — akar masalah bukan di parser melainkan arah shape: edge-walk Valhalla mengikuti edge terarah, sehingga shape yang dibalik gagal (error 233) pada koridor dengan one-way. Frontend kini mengirim shape searah rute (`plan-round-trip.ts`); terverifikasi live: faktor 5 mengubah rute (12,605 km → 12,296 km, shape berbeda). |
-| **`alternates: 2`** | **OK 22 Agustus 2026** — server mengembalikan 2 alternates pada request B→A dengan penalti (11,629 km utama + 12,537/13,020 km alternatif). |
+| CORS preflight `OPTIONS /route` | DIPERBAIKI 22 Agustus 2026 — Nginx Proxy Manager men-short-circuit `OPTIONS` untuk host `valhalla.dhanypedia.it.com` dengan 204 + header CORS (konfig di `/data/nginx/custom/server_proxy.conf`, guard `$host`). Preflight terverifikasi 204 via curl. |
+| `linear_cost_factors` | DIPERBAIKI 22 Agustus 2026 — akar masalah adalah arah shape: edge-walk mengikuti edge terarah, sehingga shape terbalik gagal (error 233) pada koridor satu arah. Frontend mengirim shape searah rute; terverifikasi live (12,605 km → 12,296 km dengan faktor 5). |
+| `alternates: 2` | Server mengembalikan 2 alternates pada request B→A dengan penalti (11,629 km utama + 12,537/13,020 km alternatif). **Bentuk JSON-nya belum diverifikasi dari sisi parser** — lihat keterbatasan di bawah. |
 
-Frontend mengirim `linear_cost_factors` sebagai `{shape: <encoded polyline6 searah rute>, factor: 5}`. Dengan preflight CORS, faktor searah, dan alternates yang kini berfungsi, mode *Lewat jalan lain* berjalan penuh tanpa fallback.
+Frontend mengirim `linear_cost_factors` sebagai `{shape: <encoded polyline6
+searah rute>, factor: 5}`, dan `units: kilometers` di level atas maupun di
+`directions_options` agar versi Valhalla lama maupun baru membacanya.
 
 ## Pengukuran Kinerja
 
 Tidak ada perangkat Android/iOS nyata yang tersedia untuk pengukuran
 LCP/INP/CLS. Pengukuran dilakukan hanya lewat build statis: bundle JS
-terpotong lewat dynamic import untuk MapLibre dan modul ekspor. Target
-LCP ≤ 2,5 s / INP ≤ 200 ms / CLS ≤ 0,1 pada perangkat nyata **belum
-dibuktikan** dan tetap menjadi gate sebelum production.
+terpotong lewat dynamic import untuk MapLibre dan modul ekspor. Dua jalur
+O(n²) (scoring overlap dan serialisasi GPX) dihapus pada 5 September dan
+dijaga oleh tes anti-regresi. Target LCP ≤ 2,5 s / INP ≤ 200 ms / CLS ≤ 0,1
+pada perangkat nyata **belum dibuktikan** dan tetap menjadi gate sebelum
+production.
 
 ## Keterbatasan yang Diketahui
 
-1. **Perangkat nyata**: QA Android Chrome/PWA dan iOS Safari/Add to
-   Home Screen belum dijalankan; tidak ditandai sebagai lolos.
-2. **Kinerja lapangan**: metrik LCP/INP/CLS pada perangkat
-   Android kelas menengah belum diukur.
-3. **Penyimpangan minor yang diketahui** (dari audit end-to-end
-   22 Agustus 2026, tidak menahan rilis):
-   - Pewarnaan medan pada polyline peta hasil (FR-ELEV-05) belum
-     diimplementasikan; band medan tersedia di chart elevasi.
-   - Cross-highlight chart↔map belum terhubung (ditoleransi PRD P1).
-   - Cache sesi Nominatim untuk query identik belum ada (throttle
-     1 detik tetap berlaku).
-   - Preferensi tersimpan via draft IndexedDB, bukan localStorage.
-   - Dokumen plan/PRD masih menyebut shape cost-factor terbalik;
-     implementasi searah rute adalah yang benar per kontrak live.
-4. **Catatan infra**: perbaikan CORS berada di file override NPM
-   (`/data/nginx/custom/server_proxy.conf`). Jika host proxy Valhalla
-   diedit lewat UI NPM, file ini tetap berlaku; namun regenerasi total
-   konfigurasi NPM di masa depan harus memastikan file ini masih ada.
-
-## Audit End-to-End (22 Agustus 2026)
-
-Audit dilakukan langsung (pengganti audit Codex) mencakup cakupan
-spesifikasi P0, keamanan/privasi/higienitas repo, arsitektur, dan
-kebenaran kalkulasi. Temuan dan tindak lanjut:
-
-| Temuan | Severity | Status |
-|---|---|---|
-| Cache metadata ruas tidak dibuang saat rute berubah dan ikut tersimpan ke draft (FR-ROAD-01) | MAJOR | **Diperbaiki** — `setLastValidRoute` kini mereset `roadSegments`/`roadMetadataError`; tes regresi ditambahkan |
-| Ekspor GPX round-trip memetakan elevasi leg pulang ke jarak salah | MAJOR | **Diperbaiki** — `build-gpx.ts` memakai `mergeElevationSamples`; tes regresi dengan elevasi leg pulang non-kosong ditambahkan |
-| Direktori `audit/` ter-track di git | dilaporkan MAJOR | **Bukan temuan** — `audit/` memang artefak bukti publik sesuai deliverable rencana (7 screenshot public-safe); daftar privat di AGENTS.md/hook/scanner tidak mencakupnya |
-| Drift PRD/plan soal arah shape cost-factor | MINOR | Didokumentasikan; plan/ bersifat read-only |
-| `style-src 'unsafe-inline'` di CSP | MINOR | Diterima (kebutuhan MapLibre/React); tanpa `unsafe-eval`/wildcard |
-| 4 temuan minor lain (warna medan peta, cross-highlight, cache Nominatim, media penyimpanan preferensi) | MINOR | Didokumentasikan di Keterbatasan |
-
-Selain itu diverifikasi: nol pola tidak aman di `src/` (tanpa
-`innerHTML`/`eval`/token), git history bersih dari jalur privat dan
-kredensial, lisensi AGPL-3.0 + OFL font lengkap, dan tidak ada
-kebocoran fitur P1/P2.
+1. **Perangkat nyata**: QA Android Chrome/PWA dan iOS Safari/Add to Home
+   Screen belum dijalankan; tidak ditandai sebagai lolos.
+2. **Kinerja lapangan**: metrik LCP/INP/CLS pada perangkat Android kelas
+   menengah belum diukur.
+3. **Matriks tiga browser**: hanya Chromium yang dijalankan pada 5 September.
+   Firefox dan WebKit perlu dijalankan ulang sebelum rilis.
+4. **Bentuk `alternates` live belum dikonfirmasi dari parser.** Parser kini
+   menerima kedua bentuk yang pernah dikirim Valhalla (pembungkus `trip` di
+   level atas respons, dan daftar bersarang di dalam `trip`), sehingga mode
+   *Lewat jalan lain* tidak lagi bergantung pada satu tebakan. Satu respons
+   live yang disimpan dan dibandingkan tetap disarankan sebelum rilis.
+5. **Penyimpangan minor yang diketahui**:
+   - Dokumen plan/PRD masih menyebut shape cost-factor terbalik; implementasi
+     searah rute adalah yang benar per kontrak live. `plan/` bersifat
+     read-only, jadi koreksi dokumen menunggu keputusan pemilik produk.
+   - `style-src 'unsafe-inline'` di CSP diterima (kebutuhan MapLibre/React);
+     tanpa `unsafe-eval` dan tanpa wildcard.
+   - Satu advisory *high* (`fast-uri`) berada di dependency pengembangan;
+     gate produksi tetap nol kerentanan.
+6. **Catatan infra**: perbaikan CORS berada di file override NPM
+   (`/data/nginx/custom/server_proxy.conf`). Regenerasi total konfigurasi NPM
+   di masa depan harus memastikan file ini masih ada.
 
 ## Deklarasi
 
 - Tidak ada push, pembuatan PR, atau deployment.
-- Satu mutasi homeserver dilakukan atas izin eksplisit pemilik:
-  penambahan `/data/nginx/custom/server_proxy.conf` di container NPM
-  untuk CORS preflight host Valhalla (22 Agustus 2026). Tidak ada
-  mutasi lain pada homeserver.
-- Tidak ada commit terhadap jalur privat (`plan/`, `.superpowers/`,
-  `.codex/`, `.agents/`), kredensial, atau file rencana.
+- Satu mutasi homeserver dilakukan atas izin eksplisit pemilik pada 22 Agustus
+  2026 (CORS preflight host Valhalla). Tidak ada mutasi lain, dan tidak ada
+  mutasi apa pun pada 5 September 2026.
+- Tidak ada commit terhadap jalur privat (`plan/`, `.superpowers/`, `.codex/`,
+  `.agents/`), kredensial, atau file rencana.
 - Semua commit lolos hook pre-commit tanpa `--no-verify`.
-- Working tree bersih kecuali artefak lokal/build yang diabaikan.
+- Working tree bersih kecuali artefak lokal yang diabaikan.
