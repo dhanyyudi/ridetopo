@@ -623,6 +623,10 @@
 
 .composer-scroll {
   flex: 1;
+  /* Without min-height: 0 a column flex item refuses to shrink below its
+     content, overflow-y never engages, and the panel grows until the whole
+     page scrolls instead. */
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -672,6 +676,10 @@
 
 .result-scroll {
   flex: 1;
+  /* Without min-height: 0 a column flex item refuses to shrink below its
+     content, overflow-y never engages, and the panel grows until the whole
+     page scrolls instead. */
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -946,6 +954,15 @@
 }
 
 /* Road review */
+/* Children of a scrolling flex column must keep their natural height. Left to
+   shrink, they compress to fit the viewport, the scroller reports no overflow,
+   and the content is quietly clipped instead of scrolled. */
+.composer-scroll > *,
+.result-scroll > *,
+.review-scroll > * {
+  flex-shrink: 0;
+}
+
 .review-panel {
   display: flex;
   flex-direction: column;
@@ -954,6 +971,10 @@
 
 .review-scroll {
   flex: 1;
+  /* Without min-height: 0 a column flex item refuses to shrink below its
+     content, overflow-y never engages, and the panel grows until the whole
+     page scrolls instead. */
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
