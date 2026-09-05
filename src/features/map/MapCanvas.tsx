@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import type { Position } from "@/domain/geo";
 import type { TerrainSection } from "@/domain/elevation";
-import type { LineLayerSpecification, CircleLayerSpecification } from "maplibre-gl";
+import type {
+  LineLayerSpecification,
+  CircleLayerSpecification,
+  SymbolLayerSpecification,
+} from "maplibre-gl";
 import { COPY } from "@/content/id";
 import { getBasemapStyleUrl, BASEMAP_ATTRIBUTION_LINKS } from "@/providers/basemap/open-free-map-provider";
 import { distanceAlongRoute, cumulativeDistances } from "@/services/routing/calculate-overlap";
 import { MapFallback } from "./MapFallback";
+import { loadMapLibre, silenceMissingStyleImages } from "./load-maplibre";
 import {
   ROUTE_CASING_LAYER,
   ROUTE_CORE_LAYER,
   ROUTE_HIT_LAYER,
   ROUTE_SELECTION_LAYER,
+  ROUTE_DIRECTION_LAYER,
+  ROUTE_ARROW_IMAGE,
+  addRouteArrowImage,
   ROUTE_NEUTRAL_COLOR,
   ROUTE_SELECTION_COLOR,
   TERRAIN_COLOR_EXPRESSION,
@@ -34,6 +42,10 @@ interface Props {
   selectionGeometry?: readonly Position[] | null;
   /** Distance along the route to mark, for chart/map cross-highlighting. */
   cursorDistanceMeters?: number | null;
+  /** What to say about that point: distance, elevation, gradient. */
+  cursorLabel?: string | null;
+  /** Pointer moved along the route. */
+  onRouteHover?: ((distanceMeters: number | null) => void) | undefined;
   fitPadding?: number;
   onRouteClick?: (distanceMeters: number) => void;
   className?: string;
@@ -50,6 +62,8 @@ export function MapCanvas({
   terrain,
   selectionGeometry,
   cursorDistanceMeters,
+  cursorLabel,
+  onRouteHover,
   fitPadding = 80,
   onRouteClick,
   className,
@@ -60,10 +74,13 @@ export function MapCanvas({
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
   const [basemapFailed, setBasemapFailed] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [cursorScreenPoint, setCursorScreenPoint] = useState<{ x: number; y: number } | null>(null);
 
   /* Held in refs so a new callback or a new route never tears down the map. */
   const routeClickRef = useRef(onRouteClick);
   routeClickRef.current = onRouteClick;
+  const routeHoverRef = useRef(onRouteHover);
+  routeHoverRef.current = onRouteHover;
   const routeGeometryRef = useRef(routeGeometry);
   routeGeometryRef.current = routeGeometry;
 
@@ -73,7 +90,7 @@ export function MapCanvas({
     let cancelled = false;
     let map: import("maplibre-gl").Map | null = null;
 
-    void import("maplibre-gl").then((maplibregl) => {
+    void loadMapLibre().then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
       maplibreModule = maplibregl;
 
@@ -86,6 +103,7 @@ export function MapCanvas({
           attributionControl: false,
         });
         mapRef.current = map;
+        silenceMissingStyleImages(map);
         map.addControl(new maplibregl.NavigationControl(), "top-right");
         map.on("load", () => {
           if (!cancelled) setMapLoaded(true);
@@ -98,6 +116,20 @@ export function MapCanvas({
           /* Project the tap onto the route instead of trusting feature
              properties: the source is one plain geometry. */
           handler(distanceAlongRoute(geometry, [e.lngLat.lng, e.lngLat.lat]));
+        });
+
+        const created = map;
+        created.on("mousemove", ROUTE_HIT_LAYER, (e) => {
+          const handler = routeHoverRef.current;
+          const geometry = routeGeometryRef.current;
+          if (!handler || !geometry || geometry.length < 2) return;
+          created.getCanvas().style.cursor = "pointer";
+          handler(distanceAlongRoute(geometry, [e.lngLat.lng, e.lngLat.lat]));
+        });
+
+        created.on("mouseleave", ROUTE_HIT_LAYER, () => {
+          created.getCanvas().style.cursor = "";
+          routeHoverRef.current?.(null);
         });
       } catch {
         setBasemapFailed(true);
@@ -155,6 +187,7 @@ export function MapCanvas({
     if (!map || !mapLoaded) return;
 
     if (!routeGeometry || routeGeometry.length < 2) {
+      if (map.getLayer(ROUTE_DIRECTION_LAYER)) map.removeLayer(ROUTE_DIRECTION_LAYER);
       removeLayer(map, ROUTE_CASING_LAYER);
       removeLayer(map, ROUTE_CORE_LAYER);
       removeLayer(map, ROUTE_HIT_LAYER);
@@ -188,6 +221,25 @@ export function MapCanvas({
       "line-color": "rgba(0,0,0,0)",
       "line-width": 26,
     });
+
+    /* Which way the ride goes. */
+    addRouteArrowImage(map);
+    if (!map.getLayer(ROUTE_DIRECTION_LAYER)) {
+      map.addLayer({
+        id: ROUTE_DIRECTION_LAYER,
+        type: "symbol",
+        source: ROUTE_HIT_LAYER,
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 110,
+          "icon-image": ROUTE_ARROW_IMAGE,
+          "icon-size": 0.75,
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      } satisfies SymbolLayerSpecification);
+    }
   }, [routeGeometry, terrain, mapLoaded]);
 
   /* Fit bounds on new geometry */
@@ -241,6 +293,8 @@ export function MapCanvas({
       type: "Point",
       coordinates: [point[0], point[1]],
     });
+
+    setCursorScreenPoint(map.project([point[0], point[1]]));
   }, [cursorDistanceMeters, routeGeometry, mapLoaded]);
 
   /* Keep the canvas in sync with container resizes */
@@ -262,6 +316,15 @@ export function MapCanvas({
       data-cursor-distance={cursorDistanceMeters ?? ""}
     >
       <div className="map-container" ref={containerRef} />
+      {cursorLabel && cursorScreenPoint && (
+        <div
+          className="map-cursor-readout"
+          style={{ left: cursorScreenPoint.x, top: cursorScreenPoint.y }}
+          role="status"
+        >
+          {cursorLabel}
+        </div>
+      )}
       {offline && <MapFallback message={COPY.offlineMapUnavailable} />}
       {!offline && basemapFailed && <MapFallback message={COPY.errorBasemap} />}
       {!offline && !basemapFailed && (

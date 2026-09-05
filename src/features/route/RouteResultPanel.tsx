@@ -43,6 +43,7 @@ export function RouteResultPanel({ controller, offline }: Props) {
           metrics={route.metrics}
           roundTrip={route.input.returnToStart}
           limitedReturn={route.limitedReturnAlternatives}
+          routeId={route.id}
         />
 
         {route.input.returnToStart && (

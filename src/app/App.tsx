@@ -14,6 +14,8 @@ import { ImagePreviewDialog } from "@/features/export/ImagePreviewDialog";
 import { MapCanvas, type MapMarker } from "@/features/map/MapCanvas";
 import { createInitialLocations } from "@/domain/location";
 import { loadPreferences } from "@/services/persistence/preference-storage";
+import { buildRouteMarkers } from "@/services/routing/route-markers";
+import { describeRouteAt } from "@/services/routing/describe-route-point";
 import { getRouteElevation } from "@/services/routing/route-elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import {
@@ -23,7 +25,7 @@ import {
   advanceCorridor,
   corridorRange,
 } from "@/services/road/segment-ranges";
-import { Trash2, RotateCcw } from "lucide-react";
+import { Trash2, RotateCcw, Plus } from "lucide-react";
 import "@/styles/global.css";
 import "@/styles/components.css";
 import "@/styles/map.css";
@@ -50,9 +52,11 @@ function AboutView() {
 function RestorePrompt({
   onRestore,
   onDelete,
+  onStartNew,
 }: {
   onRestore: () => void;
   onDelete: () => void;
+  onStartNew: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -66,6 +70,14 @@ function RestorePrompt({
             <RotateCcw size={16} aria-hidden="true" />
             {COPY.continueDraft}
           </button>
+
+          {/* Leaving the draft alone and planning something else is its own
+              choice, not a way out of the delete confirmation. */}
+          <button type="button" className="btn btn-secondary" onClick={onStartNew}>
+            <Plus size={16} aria-hidden="true" />
+            {COPY.draftKeep}
+          </button>
+
           {confirming ? (
             <>
               <p className="restore-body" role="alert">
@@ -75,7 +87,7 @@ function RestorePrompt({
                 {COPY.draftDeleteConfirm}
               </button>
               <button type="button" className="btn btn-tertiary" onClick={() => setConfirming(false)}>
-                {COPY.draftKeep}
+                {COPY.cancelAvoidance}
               </button>
             </>
           ) : (
@@ -174,32 +186,27 @@ function AppInner() {
 
   const markers = useMemo((): MapMarker[] => {
     const route = store.lastValidRoute;
-    if (route) {
-      return route.input.locations.map((loc) => {
-        if (route.input.returnToStart && loc.role === "origin") {
-          return {
-            id: loc.id,
-            position: loc.position,
-            label: "A",
-            kind: "origin-destination" as const,
-          };
-        }
-        return {
-          id: loc.id,
-          position: loc.position,
-          label: loc.role === "origin" ? "A" : loc.role === "destination" ? "B" : String(route.input.locations.filter((l) => l.role === "waypoint").indexOf(loc) + 1),
-          kind: loc.role === "origin" ? ("origin" as const) : loc.role === "destination" ? ("destination" as const) : ("waypoint" as const),
-        };
-      });
-    }
+    /* Anchored to the route once one exists, so a pin the router snapped to a
+       nearby road does not float off the line. */
+    if (route) return buildRouteMarkers(route);
+
+    let waypointNumber = 0;
     return store.locations
       .filter((l) => l.position !== null)
-      .map((l) => ({
-        id: l.id,
-        position: l.position!,
-        label: l.role === "origin" ? "A" : l.role === "destination" ? "B" : String(store.locations.filter((x) => x.role === "waypoint").indexOf(l) + 1),
-        kind: l.role === "origin" ? ("origin" as const) : l.role === "destination" ? ("destination" as const) : ("waypoint" as const),
-      }));
+      .map((l) => {
+        if (l.role === "waypoint") waypointNumber += 1;
+        return {
+          id: l.id,
+          position: l.position!,
+          label: l.role === "origin" ? "A" : l.role === "destination" ? "B" : String(waypointNumber),
+          kind:
+            l.role === "origin"
+              ? ("origin" as const)
+              : l.role === "destination"
+                ? ("destination" as const)
+                : ("waypoint" as const),
+        };
+      });
   }, [store.locations, store.lastValidRoute]);
 
   /**
@@ -287,6 +294,7 @@ function AppInner() {
         <RestorePrompt
           onRestore={() => void controller.restoreDraft()}
           onDelete={() => void controller.deleteDraft()}
+          onStartNew={controller.dismissRestorePrompt}
         />
       </AppShell>
     );
@@ -317,6 +325,12 @@ function AppInner() {
      selection; the result map shows terrain colours instead. */
   const terrain = !isReview && activeRoute ? getRouteElevation(activeRoute).terrain : null;
 
+  /* What the pointer is over: how far along, how high, how steep. */
+  const cursorLabel =
+    activeRoute && store.chartCursorMeters != null && !isReview
+      ? describeRouteAt(activeRoute, store.chartCursorMeters)
+      : null;
+
   const selectionGeometry =
     isReview && activeRoute && store.reviewSelection
       ? activeRoute.geometry.slice(
@@ -346,6 +360,8 @@ function AppInner() {
             terrain={terrain}
             selectionGeometry={selectionGeometry}
             cursorDistanceMeters={isResult ? store.chartCursorMeters : null}
+            cursorLabel={isResult ? cursorLabel : null}
+            onRouteHover={isResult ? store.setChartCursorMeters : undefined}
             onRouteClick={handleRouteClick}
             fitPadding={isResult ? 120 : 60}
             offline={store.offline}

@@ -1,5 +1,11 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { fillJourney, elevationArray, waypointResponse, MULTI_LEG_LENGTH_KM } from "./helpers";
+import {
+  fillJourney,
+  elevationArray,
+  waypointResponse,
+  outboundResponse,
+  MULTI_LEG_LENGTH_KM,
+} from "./helpers";
 
 /**
  * Mocked full journey: empty context -> search A -> map-pin B -> plan ->
@@ -50,6 +56,7 @@ const NOMINATIM_RESPONSE = [
 let routeRequestCount = 0;
 let failNextRouteRequest = false;
 let useWaypointResponse = false;
+let useStraightRouteResponse = false;
 
 async function mockProviders(page: Page) {
   await page.route("**/nominatim.openstreetmap.org/search**", (route: Route) =>
@@ -65,7 +72,13 @@ async function mockProviders(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(useWaypointResponse ? waypointResponse() : ROUTE_RESPONSE),
+      body: JSON.stringify(
+        useWaypointResponse
+          ? waypointResponse()
+          : useStraightRouteResponse
+            ? outboundResponse()
+            : ROUTE_RESPONSE,
+      ),
     });
   });
   await page.route("**/tiles.openfreemap.org/**", (route: Route) =>
@@ -84,7 +97,30 @@ test.beforeEach(() => {
   routeRequestCount = 0;
   failNextRouteRequest = false;
   useWaypointResponse = false;
+  useStraightRouteResponse = false;
 });
+
+/** Wait until fitBounds has stopped moving the markers. */
+async function waitForStableMarkers(page: Page) {
+  const read = async () =>
+    page.locator(".ridetopo-marker").evaluateAll((els) =>
+      els.map((el) => Math.round(el.getBoundingClientRect().x)).join(","),
+    );
+
+  let previous = await read();
+  await expect
+    .poll(
+      async () => {
+        await page.waitForTimeout(250);
+        const current = await read();
+        const stable = current === previous && current.length > 0;
+        previous = current;
+        return stable;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+}
 
 test.describe("route planning journey", () => {
   test("searches A, pins B, plans, inspects result, edits preference and reroutes", async ({ page }) => {
@@ -173,7 +209,7 @@ test.describe("route planning journey", () => {
     expect(metrics.scrollY).toBe(0);
   });
 
-  test("the result map shows an A and a B marker on the route", async ({ page }) => {
+  test("the result map shows an A and a B marker, positioned on the route", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await mockProviders(page);
     await page.goto("/");
@@ -181,10 +217,84 @@ test.describe("route planning journey", () => {
     await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
     await page.waitForSelector("text=Hasil rute");
 
-    /* Every map function must also exist as a marker on the map itself. */
     await expect(page.locator(".ridetopo-marker")).toHaveCount(2);
     await expect(page.locator(".ridetopo-marker.marker-origin")).toBeVisible();
     await expect(page.locator(".ridetopo-marker.marker-destination")).toBeVisible();
+
+    /* Existing in the DOM is not the same as being in the right place. Without
+       MapLibre's stylesheet a marker lays out as a static block: full
+       container width, and nowhere near its coordinates. */
+    const mapBox = (await page.locator(".app-map").boundingBox())!;
+    await waitForStableMarkers(page);
+
+    for (const marker of await page.locator(".ridetopo-marker").all()) {
+      const box = (await marker.boundingBox())!;
+      expect(box.width).toBeGreaterThan(0);
+      expect(box.width).toBeLessThan(60);
+      expect(box.height).toBeLessThan(60);
+      expect(box.x).toBeGreaterThanOrEqual(mapBox.x - 40);
+      expect(box.x).toBeLessThanOrEqual(mapBox.x + mapBox.width + 40);
+      expect(box.y).toBeGreaterThanOrEqual(mapBox.y - 40);
+      expect(box.y).toBeLessThanOrEqual(mapBox.y + mapBox.height + 40);
+    }
+  });
+
+  test("picking on the map shows the pin you just dropped", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: /Pilih di peta: Titik mulai/ }).click();
+    await page.waitForSelector(".map-picker-canvas[data-map-ready=true]");
+
+    const canvas = page.locator(".map-picker-canvas");
+    const canvasBox = (await canvas.boundingBox())!;
+    await canvas.click({ position: { x: 300, y: 250 } });
+
+    const marker = page.locator(".map-picker .maplibregl-marker").first();
+    await expect(marker).toBeVisible();
+
+    /* And inside the picker, not stretched across it. */
+    const box = (await marker.boundingBox())!;
+    expect(box.width).toBeLessThan(60);
+    expect(box.x).toBeGreaterThanOrEqual(canvasBox.x - 40);
+    expect(box.x).toBeLessThanOrEqual(canvasBox.x + canvasBox.width + 40);
+    expect(box.y).toBeGreaterThanOrEqual(canvasBox.y - 40);
+    expect(box.y).toBeLessThanOrEqual(canvasBox.y + canvasBox.height + 40);
+  });
+
+  test("hovering the route says how far, how high, and how steep", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    /* A straight east-west route, so "somewhere between the two markers" is a
+       point that is genuinely on the line. */
+    useStraightRouteResponse = true;
+    await mockProviders(page);
+    await page.goto("/");
+    await fillJourney(page);
+    await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
+    await page.waitForSelector("text=Hasil rute");
+
+    /* Aim at the route itself — the readout only answers over the line — and
+       only once fitBounds has stopped moving it. */
+    await waitForStableMarkers(page);
+    await page.waitForTimeout(1000);
+
+    const a = (await page.locator(".ridetopo-marker.marker-origin").boundingBox())!;
+    const b = (await page.locator(".ridetopo-marker.marker-destination").boundingBox())!;
+    const y = a.y + a.height / 2;
+    const readout = page.locator(".map-cursor-readout");
+
+    /* Sweep between the two markers: the line runs between them, and a couple
+       of pixels of rounding should not decide whether this test passes. */
+    for (let t = 0.2; t <= 0.8 && (await readout.count()) === 0; t += 0.1) {
+      const x = a.x + a.width / 2 + (b.x - a.x) * t;
+      await page.mouse.move(x - 15, y);
+      await page.mouse.move(x, y);
+      await page.waitForTimeout(150);
+    }
+
+    await expect(readout).toBeVisible({ timeout: 10_000 });
+    await expect(readout).toContainText("km");
   });
 
   test("the elevation chart is a keyboard slider the map mirrors", async ({ page }) => {

@@ -5,6 +5,7 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 import type { Position } from "@/domain/geo";
 import { getBasemapStyleUrl } from "@/providers/basemap/open-free-map-provider";
 import { MapFallback } from "@/features/map/MapFallback";
+import { loadMapLibre, silenceMissingStyleImages } from "@/features/map/load-maplibre";
 import { Check, X } from "lucide-react";
 
 interface Props {
@@ -36,7 +37,7 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
     setCandidate(pos);
     const map = mapRef.current;
     if (!map) return;
-    void import("maplibre-gl").then((maplibregl) => {
+    void loadMapLibre().then((maplibregl) => {
       markerRef.current?.remove();
       markerRef.current = new maplibregl.Marker({ color: "#0F766E" })
         .setLngLat([pos[0], pos[1]])
@@ -53,7 +54,7 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
     setMapError(false);
     setMapReady(false);
 
-    void import("maplibre-gl").then((maplibregl) => {
+    void loadMapLibre().then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
 
       const start = initialRef.current ?? DEFAULT_CENTER;
@@ -66,6 +67,7 @@ export function MapPicker({ open, initialPosition, onSave, onCancel }: Props) {
           attributionControl: { compact: true },
         });
         mapRef.current = map;
+        silenceMissingStyleImages(map);
 
         map.on("click", (e) => {
           placeCandidate([e.lngLat.lng, e.lngLat.lat]);

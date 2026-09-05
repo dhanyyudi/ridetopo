@@ -581,9 +581,13 @@
   overflow: hidden;
 }
 
-.map-picker-surface {
+/* Same reason as .map-host > .map-container: outrank MapLibre's own
+   `.maplibregl-map { position: relative }`. */
+.map-picker-canvas > .map-picker-surface {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .map-picker-footer {

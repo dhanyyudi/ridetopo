@@ -6,6 +6,8 @@ export const ROUTE_CASING_LAYER = "route-casing";
 export const ROUTE_CORE_LAYER = "route-core";
 export const ROUTE_HIT_LAYER = "route-hit";
 export const ROUTE_SELECTION_LAYER = "route-selection";
+export const ROUTE_DIRECTION_LAYER = "route-direction";
+export const ROUTE_ARROW_IMAGE = "route-arrow";
 
 /* Mirrors --color-terrain-* in tokens.css. MapLibre paint values cannot read
    CSS variables, so the terrain palette lives here in one place. */
@@ -111,4 +113,35 @@ export function buildTerrainFeatures(
   }
 
   return { type: "FeatureCollection", features };
+}
+
+/**
+ * A chevron drawn at runtime, so direction arrows need no sprite of their own.
+ *
+ * Arrows rather than an animated dash: an always-moving line fights the
+ * reduced-motion preference and costs a render loop for the whole session,
+ * while a chevron says which way the ride goes just as clearly.
+ */
+export function addRouteArrowImage(map: import("maplibre-gl").Map): void {
+  if (map.hasImage(ROUTE_ARROW_IMAGE)) return;
+
+  const size = 20;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(size * 0.34, size * 0.24);
+  ctx.lineTo(size * 0.68, size * 0.5);
+  ctx.lineTo(size * 0.34, size * 0.76);
+  ctx.stroke();
+
+  map.addImage(ROUTE_ARROW_IMAGE, ctx.getImageData(0, 0, size, size));
 }

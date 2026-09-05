@@ -169,10 +169,10 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
           onCursorChange(Math.max(0, Math.min(maxDist, (cursor ?? 0) + step)));
         },
         onClick: (e: React.MouseEvent) => handlePointer(e.clientX),
-        onPointerMove: (e: React.PointerEvent) => {
-          if (e.pointerType === "mouse" && e.buttons === 0) return;
-          handlePointer(e.clientX);
-        },
+        /* Plain hover, no button held: reading the profile should not require
+           dragging it. Touch only emits pointermove while a finger is down,
+           so the same handler serves both. */
+        onPointerMove: (e: React.PointerEvent) => handlePointer(e.clientX),
       }
     : { role: "img", "aria-label": COPY.elevationChartLabel };
 
