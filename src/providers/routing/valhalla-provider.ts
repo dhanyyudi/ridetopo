@@ -8,7 +8,7 @@ import type {
 } from "./valhalla-types";
 import { buildValhallaRequest } from "./build-valhalla-request";
 import {
-  normalizeValhallaResponse,
+  normalizeValhallaTrip,
   normalizeAlternateTrips,
   ValhallaResponseError,
 } from "./normalize-valhalla-response";
@@ -46,9 +46,12 @@ export function createValhallaProvider(): RoutingProvider {
   }
 
   return {
+    /* One element per trip. A trip with intermediate waypoints arrives as
+       several Valhalla legs and is collapsed into one before it leaves the
+       provider boundary. */
     async route(input: ProviderRouteRequest, signal: AbortSignal): Promise<readonly RouteLeg[]> {
       const raw = await postRoute(input, signal);
-      return normalizeValhallaResponse(raw);
+      return [normalizeValhallaTrip(raw)];
     },
 
     async routeCandidates(
@@ -56,9 +59,7 @@ export function createValhallaProvider(): RoutingProvider {
       signal: AbortSignal,
     ): Promise<readonly RouteLeg[]> {
       const raw = await postRoute(input, signal);
-      const primary = normalizeValhallaResponse(raw);
-      const alternates = normalizeAlternateTrips(raw);
-      return [...primary, ...alternates];
+      return [normalizeValhallaTrip(raw), ...normalizeAlternateTrips(raw)];
     },
 
     async traceAttributes(encodedShape: string, signal: AbortSignal): Promise<readonly RoadSegment[]> {

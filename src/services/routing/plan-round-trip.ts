@@ -7,6 +7,7 @@ import {
   trimGeometryTerminals,
   scoreReturnCandidates,
 } from "./calculate-overlap";
+import { mergeElevationSampleSets, mergeGeometries } from "./merge-legs";
 
 export interface RoundTripResult {
   returnLeg: RouteLeg;
@@ -121,21 +122,7 @@ export async function planRoundTrip(
 
 /** Merge outbound and return legs without duplicating the B join point. */
 export function mergeLegGeometry(outbound: RouteLeg, returnLeg: RouteLeg): Position[] {
-  const out = outbound.geometry;
-  const ret = returnLeg.geometry;
-
-  const outLast = out[out.length - 1];
-  const retFirst = ret[0];
-
-  if (
-    outLast &&
-    retFirst &&
-    Math.abs(outLast[0] - retFirst[0]) < 1e-7 &&
-    Math.abs(outLast[1] - retFirst[1]) < 1e-7
-  ) {
-    return [...out, ...ret.slice(1)];
-  }
-  return [...out, ...ret];
+  return mergeGeometries([outbound.geometry, returnLeg.geometry]);
 }
 
 /** Merge elevation samples: return samples offset by outbound distance. */
@@ -143,31 +130,7 @@ export function mergeElevationSamples(
   outbound: RouteLeg,
   returnLeg: RouteLeg,
 ): ElevationSample[] {
-  const out = outbound.elevation;
-  const ret = returnLeg.elevation;
-
-  if (out.length === 0 && ret.length === 0) return [];
-  if (out.length === 0) return [...ret];
-
-  const merged: ElevationSample[] = [...out];
-
-  for (const sample of ret) {
-    const combinedDistance = outbound.distanceMeters + sample.distanceMeters;
-    const last = merged[merged.length - 1]!;
-    if (combinedDistance - last.distanceMeters < 0.5) {
-      /* deduplicate the B join */
-      if (last.elevationMeters === null && sample.elevationMeters !== null) {
-        merged[merged.length - 1] = { ...last, elevationMeters: sample.elevationMeters };
-      }
-      continue;
-    }
-    merged.push({
-      distanceMeters: combinedDistance,
-      elevationMeters: sample.elevationMeters,
-    });
-  }
-
-  return merged;
+  return mergeElevationSampleSets([outbound, returnLeg]);
 }
 
 export function checkCombinedRouteLimit(outbound: RouteLeg, returnLeg: RouteLeg): void {

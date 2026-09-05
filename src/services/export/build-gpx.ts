@@ -1,7 +1,7 @@
 import type { PlannedRoute, ElevationSample } from "@/domain/route";
 import { interpolateElevationAtDistance } from "@/domain/elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
-import { mergeElevationSamples } from "@/services/routing/plan-round-trip";
+import { combinedElevationSamples } from "@/services/routing/merge-legs";
 
 function escapeXml(s: string): string {
   return s
@@ -31,9 +31,7 @@ function buildGpxContent(route: PlannedRoute): string {
   const geometry = route.geometry;
   /* Return-leg samples are 0-based relative to the return leg; merge them
      onto the combined distance axis before interpolating. */
-  const elevationProfile: ElevationSample[] = route.returnLeg
-    ? mergeElevationSamples(route.outbound, route.returnLeg)
-    : [...route.outbound.elevation];
+  const elevationProfile: ElevationSample[] = combinedElevationSamples(route);
 
   /* Distance profile over the combined geometry so elevation maps by
      cumulative distance, never by array index. */

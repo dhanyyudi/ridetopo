@@ -20,7 +20,7 @@ export interface AnalyzedElevation {
 
 export function analyzeElevation(
   samples: readonly ElevationSample[],
-  _routeDistanceMeters: number,
+  routeDistanceMeters: number,
 ): AnalyzedElevation {
   if (samples.length === 0) {
     return { samples: [], gainMeters: null, lossMeters: null, complete: false, terrain: [] };
@@ -32,7 +32,9 @@ export function analyzeElevation(
   const hasNull = smoothed.some((s) => s.elevationMeters === null);
   const validCount = smoothed.filter((s) => s.elevationMeters !== null).length;
 
-  const complete = validCount >= 2 && !hasNull;
+  /* A profile that stops well short of the route describes only part of it,
+     so its totals are not route totals. */
+  const complete = validCount >= 2 && !hasNull && coversRoute(smoothed, routeDistanceMeters);
 
   let gainMeters: number | null = null;
   let lossMeters: number | null = null;
@@ -46,6 +48,21 @@ export function analyzeElevation(
   const terrain = classifyTerrain(smoothed);
 
   return { samples: smoothed, gainMeters, lossMeters, complete, terrain };
+}
+
+/** Does the sample series reach the end of the route it describes? */
+export function coversRoute(
+  samples: readonly ElevationSample[],
+  routeDistanceMeters: number,
+): boolean {
+  if (routeDistanceMeters <= 0) return true;
+  const last = samples[samples.length - 1];
+  if (!last) return false;
+  const tolerance = Math.max(
+    ELEVATION_CONFIG.intervalMeters * 2,
+    routeDistanceMeters * 0.01,
+  );
+  return routeDistanceMeters - last.distanceMeters <= tolerance;
 }
 
 /**

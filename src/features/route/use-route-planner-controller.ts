@@ -3,6 +3,7 @@ import { useRoutePlannerStore, type ExclusionItem } from "@/store/route-planner-
 import { validateRouteLocations } from "@/domain/location";
 import type { Position } from "@/domain/geo";
 import type { RoutePlanInput, PlannedRoute, RoadSegment } from "@/domain/route";
+import type { DraftV1 } from "@/domain/export";
 import type { GeocodingResult, RoutingProvider, GeocodingProvider } from "@/providers/contracts";
 import { getRuntimeConfig } from "@/config/runtime-config";
 import { createValhallaProvider } from "@/providers/routing/valhalla-provider";
@@ -111,16 +112,19 @@ export function useRoutePlannerController() {
           return;
         }
 
-        const state = useRoutePlannerStore.getState();
-        state.setLastValidRoute(route);
-        state.setIsCalculating(false);
+        useRoutePlannerStore.getState().setLastValidRoute(route);
+        useRoutePlannerStore.getState().setIsCalculating(false);
 
-        if (!hasPlannedRef.current || state.appView === "composer") {
+        /* Read the store again after setLastValidRoute: that action clears the
+           road metadata traced from the previous route, and a stale snapshot
+           would carry it into the saved draft. */
+        const applied = useRoutePlannerStore.getState();
+        if (!hasPlannedRef.current || applied.appView === "composer") {
           hasPlannedRef.current = true;
-          state.setAppView("result");
+          applied.setAppView("result");
         }
 
-        void persistDraft(route, state.roadSegments, state.activeExclusions);
+        void persistDraft(route);
       } catch (err) {
         if (requestId !== requestIdRef.current) {
           return;
@@ -580,14 +584,23 @@ export function useRoutePlannerController() {
   };
 }
 
-async function persistDraft(
-  route: PlannedRoute,
-  roadSegments: RoadSegment[] | null,
-  activeExclusions: ExclusionItem[],
-): Promise<void> {
+/**
+ * Build the draft from the store as it stands right now. Never from a
+ * snapshot captured before the route was applied — road metadata is keyed to
+ * the route it was traced from and is reset when a new route arrives.
+ */
+export function buildDraftForCurrentState(route: PlannedRoute): DraftV1 {
+  const { roadSegments, activeExclusions } = useRoutePlannerStore.getState();
+  return buildDraftFromRoute(
+    route,
+    roadSegments,
+    activeExclusions.map((exclusion) => exclusion.position),
+  );
+}
+
+async function persistDraft(route: PlannedRoute): Promise<void> {
   try {
-    const draft = buildDraftFromRoute(route, roadSegments, activeExclusions.map((e) => e.position));
-    await draftRepository.save(draft);
+    await draftRepository.save(buildDraftForCurrentState(route));
   } catch {
     /* Draft persistence is best-effort */
   }

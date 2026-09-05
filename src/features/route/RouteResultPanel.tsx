@@ -1,8 +1,7 @@
-import { useMemo } from "react";
 import { COPY } from "@/content/id";
 import { useRoutePlannerStore } from "@/store/route-planner-store";
 import type { useRoutePlannerController } from "./use-route-planner-controller";
-import { analyzeElevation } from "@/domain/elevation";
+import { getRouteElevation } from "@/services/routing/route-elevation";
 import { ElevationChart } from "@/features/elevation/ElevationChart";
 import { ElevationSummary } from "@/features/elevation/ElevationSummary";
 import { RouteSummary } from "./RouteSummary";
@@ -17,13 +16,11 @@ export function RouteResultPanel({ controller, offline }: Props) {
   const store = useRoutePlannerStore();
   const route = store.lastValidRoute;
 
-  const elevation = useMemo(() => {
-    if (!route) return null;
-    const samples = [...route.outbound.elevation, ...(route.returnLeg?.elevation ?? [])];
-    return analyzeElevation(samples, route.metrics.distanceMeters);
-  }, [route]);
-
   if (!route) return null;
+
+  /* Shared, cached analysis: the return leg's samples are shifted onto the
+     combined distance axis, so the panel and the exports agree. */
+  const elevation = getRouteElevation(route);
 
   return (
     <div className="result-panel">
