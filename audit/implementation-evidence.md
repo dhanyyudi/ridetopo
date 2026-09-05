@@ -1,7 +1,7 @@
 # Bukti Implementasi — RideTopo P0
 
 **Branch:** fix/audit-remediation-2026-09
-**HEAD:** `dcb8e3f`
+**HEAD:** `c9c0762`
 **Audit terakhir:** 5 September 2026 (audit ulang menyeluruh + remediasi)
 **Audit sebelumnya:** 13 dan 22 Agustus 2026
 
@@ -29,6 +29,7 @@ satu kontrak live yang belum bisa dibuktikan dari sisi frontend.
 | `npm run test:e2e` | 0 | **105 tes: 35 kasus × 3 browser** |
 | `npm audit --omit=dev --audit-level=high` | 0 | 0 kerentanan produksi |
 | `npm audit --audit-level=critical` | 0 | lolos; satu *high* di dev tree (`fast-uri`) |
+| `npm run verify` (rangkaian penuh) | 0 | seluruh gate berurutan lolos |
 | `git log --all --name-only` | — | tidak ada `plan/`, `.superpowers/`, `.env`, kredensial |
 
 ## Matriks Browser E2E (5 September 2026)
