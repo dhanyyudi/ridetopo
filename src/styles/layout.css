@@ -2,7 +2,11 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  /* Definite viewport height: with only min-height the column flex chain
+     below stays indefinite, .app-layout's flex-basis: 0% silently wins over
+     its height rules, and long composer content overflows the document
+     (page scrolls on its own). */
+  height: 100dvh;
   background: var(--color-surface);
 }
 
@@ -99,6 +103,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Long static pages (privacy/about) scroll here, never the document. */
+  overflow-y: auto;
 }
 
 /* Layout: mobile-first. Map on top, panel/sheet below. */

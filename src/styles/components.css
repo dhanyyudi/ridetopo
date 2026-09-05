@@ -538,6 +538,11 @@
 .map-picker-canvas {
   flex: 1;
   position: relative;
+  /* MapLibre sizes its canvas from the container; without min-height: 0 the
+     growing canvas feeds back into flex layout, pushing the footer off
+     screen and making the page scroll on its own. */
+  min-height: 0;
+  overflow: hidden;
 }
 
 .map-picker-footer {
