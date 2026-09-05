@@ -61,6 +61,19 @@ describe("check-public-tree", () => {
     expect(runCheck().exitCode).toBe(1);
   });
 
+  it("blocks the maintainer agent instructions", () => {
+    initRepo();
+    addAndCommit("AGENTS.md", "internal instructions");
+    expect(runCheck().exitCode).toBe(1);
+  });
+
+  it("blocks the internal audit evidence", () => {
+    initRepo();
+    mkdirSync(resolve(TMP, "audit"), { recursive: true });
+    addAndCommit("audit/implementation-evidence.md", "internal QA record");
+    expect(runCheck().exitCode).toBe(1);
+  });
+
   it("blocks .env file", () => {
     initRepo();
     addAndCommit(".env", "SECRET=abc");

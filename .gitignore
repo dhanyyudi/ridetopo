@@ -4,6 +4,10 @@
 /docs/superpowers/plans/
 /.codex/
 /.agents/
+# Agent instructions and internal QA evidence: for the maintainers, not the
+# public repository. Both stay on disk; neither is tracked.
+/AGENTS.md
+/audit/
 
 # Environment and credentials
 .env
