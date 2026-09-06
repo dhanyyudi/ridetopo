@@ -15,6 +15,25 @@ import {
 let offlineRequests: string[] = [];
 
 async function mockOnlineProviders(page: Page) {
+  /* This is the one spec that lets a service worker live, and a worker that
+     claims the page can re-issue a request from its own context where the
+     mocks below never see it. Point the providers at a reserved TLD that
+     cannot resolve, so an escaped request fails loudly here instead of
+     quietly reaching the real routing and geocoding services and asserting
+     against whatever they happen to answer. */
+  await page.route("**/config.json", (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: 1,
+        valhallaBaseUrl: "https://valhalla.invalid",
+        nominatimBaseUrl: "https://nominatim.invalid",
+        basemapStyleUrl: "https://tiles.invalid/styles/liberty",
+        geocodingEnabled: true,
+      }),
+    }),
+  );
   mockNominatim(page);
   await page.route("**/route", (route: Route) =>
     route.fulfill({

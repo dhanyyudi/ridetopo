@@ -171,6 +171,11 @@ export function trackRouteCalls(
 }
 
 export function mockTiles(page: Page) {
+  /* Matched by path, not by host: a spec may point the basemap somewhere
+     else entirely, and the mock has to follow it there. */
+  void page.route(/\/(tiles|data)\/.*\.(pbf|mvt|png|webp|json)(\?|$)/, (route: Route) =>
+    route.fulfill({ status: 200, contentType: "application/octet-stream", body: "" }),
+  );
   void page.route("**/tiles.openfreemap.org/**", (route: Route) =>
     route.fulfill({ status: 200, contentType: "application/octet-stream", body: "" }),
   );
@@ -184,7 +189,7 @@ export function mockTiles(page: Page) {
 }
 
 export function mockNominatim(page: Page, results = NOMINATIM_DEFAULT) {
-  void page.route("**/nominatim.openstreetmap.org/search**", (route: Route) =>
+  void page.route("**/search?**", (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
