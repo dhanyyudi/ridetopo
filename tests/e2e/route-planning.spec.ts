@@ -141,11 +141,15 @@ test.describe("route planning journey", () => {
     await expect(page.getByText("Hasil rute")).toBeVisible();
     expect(routeRequestCount).toBe(1);
 
-    /* Result contains summary + elevation + actions */
-    await expect(page.getByText("Jarak")).toBeVisible();
-    await expect(page.getByText("Estimasi waktu bersepeda")).toBeVisible();
+    /* Compact result: numbers as chips on the map, actions as an icon rail. */
+    await expect(page.getByText(/Jarak/)).toBeAttached();
+    await expect(page.getByText(/12,4 km|\d+,\d+ km/).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Tinjau ruas jalan" })).toBeVisible();
+
+    /* Exports live one tap away rather than across the bottom of the map. */
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await expect(page.getByRole("button", { name: "Unduh GPX" })).toBeVisible();
+    await page.getByRole("button", { name: "Tutup ekspor" }).click();
 
     /* Edit preference -> reroute */
     await page.getByRole("button", { name: "Ubah rute" }).click();
@@ -174,6 +178,9 @@ test.describe("route planning journey", () => {
     await expect(page.getByText(/Gagal merencanakan rute/)).toBeVisible();
     await page.getByRole("button", { name: "Lihat rute sebelumnya" }).click();
     await expect(page.getByText("Hasil rute")).toBeVisible();
+
+    /* The exports still belong to the route that survived. */
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await expect(page.getByRole("button", { name: "Unduh GPX" })).toBeVisible();
   });
 
@@ -328,6 +335,9 @@ test.describe("route planning journey", () => {
     await fillJourney(page);
     await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
     await page.waitForSelector("text=Hasil rute");
+
+    /* On a phone the chart is behind its own control, so open it first. */
+    await page.getByRole("button", { name: "Elevasi" }).click();
 
     const legend = page.getByRole("list", { name: /Keterangan medan/ });
     await expect(legend).toContainText("Menanjak");

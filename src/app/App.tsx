@@ -389,7 +389,9 @@ function AppInner() {
             pickCandidate={store.mapPickCandidate}
             onPick={inlinePicking ? store.setMapPickCandidate : undefined}
             onRouteClick={handleRouteClick}
-            fitPadding={isResult ? 120 : 60}
+            /* A phone has far less room to spare than a desktop side-by-side
+               layout, and the same padding there leaves the route a speck. */
+            fitPadding={isWide ? (isResult ? 120 : 60) : 40}
             offline={store.offline}
             onBasemapStatusChange={setMapUnavailable}
           />

@@ -126,6 +126,7 @@ test.describe("evidence screenshots", () => {
     await mockProviders(page);
     await page.goto("/");
     await planJourney(page);
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await page.getByRole("button", { name: "Bagikan gambar" }).click();
     await expect(page.getByText(/Gambar rute dapat memperlihatkan lokasi/)).toBeVisible();
     await page.screenshot({ path: "audit/screenshots/image-preview-390.png" });

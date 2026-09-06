@@ -151,13 +151,60 @@
   overflow: hidden;
 }
 
-/* Review: full task surface on compact */
+/* Collapsed, the compact sheet is a few numbers and three buttons, so it
+   claims only what it needs and the map keeps the rest of the screen.
+   Opening the chart or the exports lets it grow to the old ceiling. */
+/* Compact result: the map is the screen, and the controls float on it.
+   Scoped so the wide layout's side panel is untouched. */
+@media (max-width: 1023px) {
+  .layout-result {
+    position: relative;
+  }
+
+  .layout-result .app-map {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .layout-result .app-panel:has(.map-overlay) {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    max-height: none;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    /* The gaps between the controls belong to the map underneath. */
+    pointer-events: none;
+  }
+
+  /* MapLibre's zoom stack starts where the stats card ends, so the two are
+     not stacked on top of each other. */
+  .layout-result .maplibregl-ctrl-top-right {
+    margin-top: 84px;
+  }
+}
+
+/* Review: map on top, list below. Judging a ruas without seeing where it
+   runs is guesswork, and the list used to take the whole phone screen. */
 .layout-review {
   height: calc(100dvh - var(--header-height-compact) - env(safe-area-inset-top));
 }
 
-.layout-review .app-panel {
+.layout-review .app-map {
+  display: block;
+  order: -1;
   flex: 1;
+  min-height: 180px;
+}
+
+.layout-review .app-panel {
+  flex: 1.6;
+  max-height: 66dvh;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+  overflow: hidden;
 }
 
 /* Composer: full page on compact */
