@@ -159,8 +159,10 @@ test("offline journey: plan, save, restore with consent, export offline", async 
   await expect(page.getByText("Hasil rute")).toBeVisible();
   await expect(page.getByText("Anda sedang offline")).toBeVisible();
 
-  /* GPX download works offline */
+  /* GPX download works offline. Exports sit behind their own control on a
+     phone, and that control has to work with no network either. */
   await blockExternalProviders(page);
+  await page.getByRole("button", { name: "Ekspor rute" }).click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Unduh GPX" }).click();
   const download = await downloadPromise;
@@ -176,12 +178,14 @@ test("offline journey: plan, save, restore with consent, export offline", async 
   expect(pngDownload.suggestedFilename()).toMatch(/^ridetopo-rencana-.*\.png$/);
 
   /* Close the preview before continuing */
-  await page.getByRole("button", { name: "Tutup" }).click();
+  await page.getByRole("button", { name: "Tutup", exact: true }).click();
 
   /* No external provider requests while offline */
   expect(offlineRequests).toEqual([]);
 
-  /* Routing and search must be disabled offline */
+  /* Routing and search must be disabled offline. The export panel holds the
+     screen while it is open, so close it to get back to the actions. */
+  await page.getByRole("button", { name: "Tutup ekspor" }).click();
   await page.getByRole("button", { name: "Ubah rute" }).click();
   await expect(page.getByRole("button", { name: "Rencanakan Rute", exact: true })).toBeDisabled();
 });

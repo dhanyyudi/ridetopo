@@ -130,6 +130,7 @@ test.describe("round trip", () => {
     await expect(page.getByText(/Gagal merencanakan rute|Tidak ditemukan rute pulang/)).toBeVisible();
     await page.getByRole("button", { name: "Lihat rute sebelumnya" }).click();
     await expect(page.getByText("Hasil rute")).toBeVisible();
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await expect(page.getByRole("button", { name: "Unduh GPX" })).toBeVisible();
   });
 });

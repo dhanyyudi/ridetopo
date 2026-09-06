@@ -64,7 +64,10 @@ const TRACE_RESPONSE = {
 let requestLog: RouteCallLog[] = [];
 let failNextReroute = false;
 
-async function mockProviders(page: Page, options: { segments?: number } = {}) {
+async function mockProviders(
+  page: Page,
+  options: { segments?: number; segmentNames?: (i: number) => string[] } = {},
+) {
   mockNominatim(page);
   await page.route("**/route", trackRouteCalls(requestLog, (body) => {
     if (failNextReroute) {
@@ -96,19 +99,27 @@ async function mockProviders(page: Page, options: { segments?: number } = {}) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(
-        options.segments ? { edges: manySegments(options.segments) } : TRACE_RESPONSE,
+        options.segments
+          ? { edges: manySegments(options.segments, options.segmentNames) }
+          : TRACE_RESPONSE,
       ),
     }),
   );
   mockTiles(page);
 }
 
-/** A trace long enough that the list cannot fit on one screen. */
-function manySegments(count: number) {
+/**
+ * A trace long enough that the list cannot fit on one screen.
+ *
+ * Each edge is a different street on purpose: consecutive edges of the same
+ * road collapse into one row, so identical names would produce a list of one
+ * and quietly retire the scrolling this file is here to check.
+ */
+function manySegments(count: number, name: (i: number) => string[] = (i) => [`Jalan ${i}`]) {
   return Array.from({ length: count }, (_, i) => ({
     begin_shape_index: i,
     end_shape_index: i + 1,
-    names: [],
+    names: name(i),
     road_class: "residential",
     surface: "paved_smooth",
     unpaved: false,
@@ -193,7 +204,23 @@ test.describe("road review", () => {
 
     /* Exiting review restores export controls */
     await page.getByRole("button", { name: "Selesai tinjau" }).click();
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await expect(page.getByRole("button", { name: "Unduh GPX" })).toBeVisible();
+  });
+
+  test("one street is one row, however many edges the router split it into", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    /* What Valhalla actually returns: a street arrives as many graph edges. */
+    await mockProviders(page, { segments: 40, segmentNames: () => ["Jalan Panjang"] });
+    await page.goto("/");
+    await planJourney(page);
+    await page.getByRole("button", { name: "Tinjau ruas jalan" }).click();
+    await expect(page.locator(".segment-item").first()).toBeVisible();
+
+    /* Forty edges, one road, one row — otherwise avoiding this street means
+       scrolling past thirty-nine copies of its name to find the end of it. */
+    await expect(page.locator(".segment-item")).toHaveCount(1);
+    await expect(page.locator(".segment-item").first()).toContainText("Jalan Panjang");
   });
 
   test("supports corridor extension with two boundaries", async ({ page }) => {
@@ -247,6 +274,7 @@ test.describe("road review", () => {
     /* Exit review: previous route and export remain available */
     await page.getByRole("button", { name: "Selesai tinjau" }).click();
     await expect(page.getByText("Hasil rute")).toBeVisible();
+    await page.getByRole("button", { name: "Ekspor rute" }).click();
     await expect(page.getByRole("button", { name: "Unduh GPX" })).toBeVisible();
   });
 

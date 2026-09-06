@@ -6,6 +6,8 @@ import { ElevationChart } from "@/features/elevation/ElevationChart";
 import { ElevationSummary } from "@/features/elevation/ElevationSummary";
 import { TerrainLegend } from "@/features/elevation/TerrainLegend";
 import { RouteSummary } from "./RouteSummary";
+import { RouteResultCompact } from "./RouteResultCompact";
+import { useMediaQuery, WIDE_LAYOUT_QUERY } from "@/lib/use-media-query";
 import { Pencil, Download, Image as ImageIcon, Map as MapIcon } from "lucide-react";
 
 interface Props {
@@ -15,6 +17,7 @@ interface Props {
 
 export function RouteResultPanel({ controller, offline }: Props) {
   const store = useRoutePlannerStore();
+  const isWide = useMediaQuery(WIDE_LAYOUT_QUERY);
   const route = store.lastValidRoute;
 
   if (!route) return null;
@@ -22,6 +25,19 @@ export function RouteResultPanel({ controller, offline }: Props) {
   /* Shared, cached analysis: the return leg's samples are shifted onto the
      combined distance axis, so the panel and the exports agree. */
   const elevation = getRouteElevation(route);
+
+  /* A phone cannot hold the map and all of this at once, so it gets a sheet
+     built for that constraint rather than this one squeezed into it. */
+  if (!isWide) {
+    return (
+      <RouteResultCompact
+        route={route}
+        elevation={elevation}
+        controller={controller}
+        offline={offline}
+      />
+    );
+  }
 
   return (
     <div className="result-panel">

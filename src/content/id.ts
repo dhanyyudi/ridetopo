@@ -172,6 +172,16 @@ export const COPY = {
   elevationChartLabel: "Grafik elevasi rute",
   elevationChartHint: "Geser atau gunakan panah kiri/kanan untuk menelusuri rute.",
   elevationSectionTitle: "Profil elevasi",
+  /* Compact result sheet: the map takes the screen, so the sheet says the
+     few numbers that matter and keeps the rest behind one tap. */
+  /* Short forms: the full labels wrap to three lines in a phone-width row. */
+  routeDurationShort: "Waktu",
+  routeSpeedShort: "Kecepatan",
+  roadReviewShort: "Tinjau ruas",
+  showElevation: "Elevasi",
+  hideElevation: "Tutup elevasi",
+  showExport: "Ekspor",
+  hideExport: "Tutup ekspor",
 
   /* Privacy */
   privacyTitle: "Privasi",

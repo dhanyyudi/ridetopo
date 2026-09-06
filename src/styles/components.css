@@ -1056,6 +1056,9 @@
   border-left: 3px solid transparent;
   cursor: pointer;
   min-height: 44px;
+  /* The list is a flex column with a bounded height, so without this every
+     row is squashed below its own text and the km range is sliced in half. */
+  flex-shrink: 0;
 }
 
 .segment-item:hover {
@@ -1124,4 +1127,161 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- Floating controls over the map (compact result) ---------------- */
+
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  /* Reserves the strip the map keeps its attribution in. That line is a
+     licence term, not decoration, so nothing floating may sit on it. */
+  padding-bottom: calc(var(--space-3) + 24px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.map-overlay.overlay-open {
+  justify-content: space-between;
+}
+
+/* Everything the finger can reach opts back in; the gaps stay the map's. */
+.map-overlay button,
+.map-overlay input,
+.map-overlay .glass {
+  pointer-events: auto;
+}
+
+/* Frosted rather than solid: the route stays readable underneath, which is
+   the point of putting the controls on the map in the first place. Alpha
+   stays high enough that the text keeps its contrast over any basemap. */
+.glass {
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 10px rgba(20, 32, 30, 0.14);
+}
+
+.icon-round {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-brand-primary);
+  cursor: pointer;
+}
+
+.icon-round:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A rail on one edge, not a row across the bottom: the map keeps its width. */
+.overlay-rail {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.overlay-foot,
+.overlay-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.overlay-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.chip-time {
+  gap: 2px;
+}
+
+.chip-time-input {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-muted);
+  min-height: 28px;
+}
+
+.chip-arrival {
+  color: var(--color-ink);
+}
+
+.overlay-note {
+  white-space: normal;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* The panel is glass too, so the route stays visible behind the chart it
+   describes. Bounded, and scrolls inside itself on a short screen. */
+.overlay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-panel);
+  max-height: 62dvh;
+  overflow-y: auto;
+}
+
+.overlay-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.overlay-close {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+/* ---- Review list on a phone ----------------------------------------- */
+
+/* The sheet's footer: the list scrolls, this does not. Choosing a ruas and
+   then having to scroll past the list to act on it was the complaint. */
+.review-footer:empty {
+  display: none;
+}
+
+.review-footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.review-footer .segment-detail-panel {
+  padding: 0;
+  border: 0;
 }

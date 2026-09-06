@@ -89,3 +89,11 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+/* The `hidden` attribute has to actually hide. Any component rule that sets
+   `display` outranks the UA's `[hidden] { display: none }`, so a collapsed
+   section stayed on screen — which is how the compact sheet shipped with its
+   elevation chart always open. */
+[hidden] {
+  display: none !important;
+}
