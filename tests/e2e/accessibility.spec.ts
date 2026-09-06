@@ -80,6 +80,23 @@ test.describe("Shell accessibility", () => {
     expect(["BUTTON", "CANVAS", "INPUT", "A"]).toContain(focusedTag);
   });
 
+
+  test("axe finds no serious or critical violations on the composer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.getByText("Titik mulai")).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    expect(serious.map((v) => v.id)).toEqual([]);
+  });
+});
+
+/* Every other spec blocks the service worker so mocks stay reliable; this one
+   is about the worker existing at all, so it lets one register. */
+test.describe("PWA registration", () => {
+  test.use({ serviceWorkers: "allow" });
+
   test("manifest link and service worker are present", async ({ page }) => {
     await page.goto("/");
 
@@ -92,15 +109,5 @@ test.describe("Shell accessibility", () => {
       return regs.length;
     });
     expect(swCount).toBeGreaterThan(0);
-  });
-
-  test("axe finds no serious or critical violations on the composer", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-    await expect(page.getByText("Titik mulai")).toBeVisible();
-
-    const results = await new AxeBuilder({ page }).analyze();
-    const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
-    expect(serious.map((v) => v.id)).toEqual([]);
   });
 });

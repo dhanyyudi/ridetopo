@@ -6,6 +6,16 @@
   Cache-Control: no-cache
   X-Content-Type-Options: nosniff
 
+# The worker script decides when a new version reaches anyone, so it must
+# never be served from cache — a stale copy pins the app to the old build.
+/sw.js
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+
+/registerSW.js
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 

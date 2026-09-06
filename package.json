@@ -22,7 +22,7 @@
     "test:e2e:ci": "playwright test --project=chromium --project=webkit --project=firefox-no-webgl",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "check:public": "node scripts/check-public-tree.mjs",
-    "verify": "npm run check:public && npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e"
+    "verify": "npm run check:public && npm run lint && npm run typecheck && npm run test && npm run build && npm run verify:build && npm run test:e2e && npm run audit:security"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

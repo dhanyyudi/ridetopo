@@ -8,6 +8,17 @@ const isCI = Boolean(process.env.CI);
 const DEGRADATION_SPEC = /degradation\.spec\.ts/;
 
 /*
+ * The offline journey needs a live service worker — it is what serves the
+ * shell once the network is gone. Playwright only intercepts requests made
+ * by a service worker in Chromium; in WebKit, a worker-controlled page
+ * escapes every mock, so the spec would quietly call the real routing
+ * service and assert against whatever it answered. Chromium and Firefox
+ * cover the journey; Safari's own offline behaviour belongs to the device QA
+ * that is still an open pre-production gate.
+ */
+const OFFLINE_SPEC = /offline-export\.spec\.ts/;
+
+/*
  * Headless Firefox on GitHub's GPU-less runner cannot give MapLibre a WebGL
  * context, and forcing the software backend through user prefs does not
  * change that — every map journey still times out waiting for a map that
@@ -26,6 +37,13 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173",
     trace: "on-first-retry",
+    /* The worker now claims the page as soon as it activates, and a request
+       it re-issues comes from the worker rather than the page — which some
+       engines will not route to a mock, leaving a test blind to a call that
+       really happened. Tests that are not about caching keep the worker out
+       of the way; offline-export.spec.ts opts back in, because there the
+       worker is the thing under test. */
+    serviceWorkers: "block",
   },
   projects: [
     {
@@ -40,7 +58,7 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      testIgnore: DEGRADATION_SPEC,
+      testIgnore: [DEGRADATION_SPEC, OFFLINE_SPEC],
       use: { ...devices["Desktop Safari"] },
     },
     {
