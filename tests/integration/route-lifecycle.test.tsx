@@ -189,12 +189,12 @@ describe("route-planner store — views", () => {
     expect(useRoutePlannerStore.getState().appView).toBe("road-review");
   });
 
-  it("search dialog state is explicit", () => {
+  it("map picker state is explicit", () => {
     const state = useRoutePlannerStore.getState();
-    expect(state.searchDialog.open).toBe(false);
-    state.setSearchDialog({ open: true, targetId: "abc" });
-    expect(useRoutePlannerStore.getState().searchDialog.open).toBe(true);
-    expect(useRoutePlannerStore.getState().searchDialog.targetId).toBe("abc");
+    expect(state.mapPicker.open).toBe(false);
+    state.setMapPicker({ open: true, targetId: "abc" });
+    expect(useRoutePlannerStore.getState().mapPicker.open).toBe(true);
+    expect(useRoutePlannerStore.getState().mapPicker.targetId).toBe("abc");
   });
 });
 

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { COPY } from "@/content/id";
 import type { EditableRouteLocation } from "@/domain/location";
+import type { GeocodingResult } from "@/providers/contracts";
 import { LocationField } from "./LocationField";
 import { PRODUCT_LIMITS } from "@/domain/route";
 import {
@@ -25,7 +26,9 @@ interface Props {
   locations: readonly EditableRouteLocation[];
   onAddWaypoint: () => void;
   onRemoveLocation: (id: string) => void;
-  onOpenSearch: (location: EditableRouteLocation) => void;
+  onSearch: (query: string, signal: AbortSignal) => Promise<readonly GeocodingResult[]>;
+  onSelectSearchResult: (location: EditableRouteLocation, result: GeocodingResult) => void;
+  offline: boolean;
   onOpenMapPicker: (location: EditableRouteLocation) => void;
   onUseGeolocation: (location: EditableRouteLocation) => void;
   onMoveWaypoint: (id: string, direction: -1 | 1) => void;
@@ -74,7 +77,9 @@ export function WaypointList({
   locations,
   onAddWaypoint,
   onRemoveLocation,
-  onOpenSearch,
+  onSearch,
+  onSelectSearchResult,
+  offline,
   onOpenMapPicker,
   onUseGeolocation,
   onMoveWaypoint,
@@ -113,7 +118,9 @@ export function WaypointList({
                 canRemove={loc.role === "waypoint"}
                 canMoveUp={loc.role === "waypoint" && waypointIdx > 0}
                 canMoveDown={loc.role === "waypoint" && waypointIdx < waypointIds.length - 1}
-                onOpenSearch={() => onOpenSearch(loc)}
+                onSearch={onSearch}
+                onSelectSearchResult={(result) => onSelectSearchResult(loc, result)}
+                offline={offline}
                 onOpenMapPicker={() => onOpenMapPicker(loc)}
                 onUseGeolocation={() => onUseGeolocation(loc)}
                 onRemove={() => onRemoveLocation(loc.id)}
@@ -131,7 +138,9 @@ export function WaypointList({
                       canRemove
                       canMoveUp={waypointIdx > 0}
                       canMoveDown={waypointIdx < waypointIds.length - 1}
-                      onOpenSearch={() => onOpenSearch(loc)}
+                      onSearch={onSearch}
+                      onSelectSearchResult={(result) => onSelectSearchResult(loc, result)}
+                      offline={offline}
                       onOpenMapPicker={() => onOpenMapPicker(loc)}
                       onUseGeolocation={() => onUseGeolocation(loc)}
                       onRemove={() => onRemoveLocation(loc.id)}

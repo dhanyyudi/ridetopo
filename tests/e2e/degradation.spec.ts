@@ -62,11 +62,15 @@ test.describe("no WebGL", () => {
     await mockProviders(page);
     await page.goto("/");
 
-    await page.getByRole("button", { name: "Titik mulai", exact: true }).click();
-    await page.getByLabel("Cari lokasi...").fill("Monas");
-    await page.getByRole("button", { name: "Cari", exact: true }).click();
+    await page.getByLabel("Titik mulai", { exact: true }).fill("Monas");
+    await page
+      .locator(".location-field", { hasText: "Titik mulai" })
+      .getByRole("button", { name: "Cari", exact: true })
+      .click();
     await page.getByRole("option", { name: /Monumen Nasional/ }).click();
 
-    await expect(page.getByText(/Monumen Nasional/).first()).toBeVisible();
+    await expect(page.getByLabel("Titik mulai", { exact: true })).toHaveValue(
+      /Monumen Nasional/,
+    );
   });
 });

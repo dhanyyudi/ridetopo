@@ -17,11 +17,6 @@ export interface ExclusionItem {
   label: string;
 }
 
-export interface SearchDialogState {
-  open: boolean;
-  targetId: string | null;
-}
-
 export interface MapPickerState {
   open: boolean;
   targetId: string | null;
@@ -84,7 +79,6 @@ export interface RoutePlannerState {
 
   /* View state */
   appView: AppView;
-  searchDialog: SearchDialogState;
   mapPicker: MapPickerState;
   imagePreview: ImagePreviewState;
   offline: boolean;
@@ -129,7 +123,6 @@ export interface RoutePlannerState {
 
   /* Actions — view state */
   setAppView: (view: AppView) => void;
-  setSearchDialog: (state: SearchDialogState) => void;
   setMapPicker: (state: MapPickerState) => void;
   setImagePreview: (state: ImagePreviewState) => void;
   setOffline: (value: boolean) => void;
@@ -167,7 +160,6 @@ const initialState = {
   mapPickCandidate: null as Position | null,
   locationNotice: null as string | null,
   appView: "composer" as AppView,
-  searchDialog: { open: false, targetId: null } as SearchDialogState,
   mapPicker: { open: false, targetId: null } as MapPickerState,
   imagePreview: { open: false, url: null, filename: "", imageFile: null } as ImagePreviewState,
   offline: false,
@@ -276,7 +268,6 @@ export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
   setLocationNotice: (locationNotice) => set({ locationNotice }),
 
   setAppView: (appView) => set({ appView }),
-  setSearchDialog: (searchDialog) => set({ searchDialog }),
   /* Opening or closing the picker always drops any pending candidate. */
   setMapPicker: (mapPicker) => set({ mapPicker, mapPickCandidate: null }),
   setImagePreview: (imagePreview) => set({ imagePreview }),

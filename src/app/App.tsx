@@ -8,7 +8,6 @@ import { useRoutePlannerController } from "@/features/route/use-route-planner-co
 import { RouteComposer } from "@/features/route/RouteComposer";
 import { RouteResultPanel } from "@/features/route/RouteResultPanel";
 import { RoadReviewPanel } from "@/features/road-review/RoadReviewPanel";
-import { LocationSearchDialog } from "@/features/location/LocationSearchDialog";
 import { MapPicker } from "@/features/location/MapPicker";
 import { ImagePreviewDialog } from "@/features/export/ImagePreviewDialog";
 import { MapCanvas, type MapMarker } from "@/features/map/MapCanvas";
@@ -275,10 +274,6 @@ function AppInner() {
     });
   }, []);
 
-  const searchTarget = useMemo(() => {
-    if (!store.searchDialog.targetId) return null;
-    return store.locations.find((l) => l.id === store.searchDialog.targetId) ?? null;
-  }, [store.locations, store.searchDialog.targetId]);
 
   const isResult = store.appView === "result";
   const isReview = store.appView === "road-review";
@@ -401,21 +396,6 @@ function AppInner() {
         </div>
       </div>
 
-      <LocationSearchDialog
-        open={store.searchDialog.open}
-        onClose={() => store.setSearchDialog({ open: false, targetId: null })}
-        onSelect={(result) => {
-          if (searchTarget) {
-            controller.applyLocation(searchTarget.id, {
-              position: result.position,
-              label: result.label.split(",")[0] ?? result.label,
-              source: "search",
-            });
-          }
-        }}
-        onSearch={controller.searchLocation}
-        offline={store.offline}
-      />
 
       <MapPicker
         open={store.mapPicker.open && !inlinePicking}

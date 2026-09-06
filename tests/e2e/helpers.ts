@@ -204,9 +204,12 @@ export const NOMINATIM_DEFAULT = [
 ];
 
 export async function fillJourney(page: Page) {
-  await page.getByRole("button", { name: "Titik mulai", exact: true }).click();
-  await page.getByLabel("Cari lokasi...").fill("Monas");
-  await page.getByRole("button", { name: "Cari", exact: true }).click();
+  /* Search lives in the row itself now — no dialog to open first. */
+  await page.getByLabel("Titik mulai", { exact: true }).fill("Monas");
+  await page
+    .locator(".location-field", { hasText: "Titik mulai" })
+    .getByRole("button", { name: "Cari", exact: true })
+    .click();
   await page.getByRole("option", { name: /Monumen Nasional/ }).click();
 
   await page.getByRole("button", { name: /Pilih di peta: Tujuan/ }).click();

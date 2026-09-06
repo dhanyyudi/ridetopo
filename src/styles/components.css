@@ -284,29 +284,53 @@
   min-width: 0;
 }
 
-.location-value {
+/* Search happens in the row itself: a dialog here covered the map, the other
+   points, and the route the place was being added to. */
+.location-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.location-search-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  width: 100%;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--color-text-muted);
-  text-align: left;
 }
 
-.location-value:hover {
-  background: var(--color-surface);
-}
-
-.location-value .placeholder {
+.location-search-icon {
+  position: absolute;
+  left: var(--space-3);
   color: var(--color-text-tertiary);
+  pointer-events: none;
 }
 
-.location-value .filled {
-  color: var(--color-ink);
-  font-weight: 500;
+.location-search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding-left: calc(var(--space-3) * 2 + 16px);
+}
+
+.location-search-submit {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+/* Bounded so a long result list never pushes the plan button off the panel. */
+.location-search-results {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+
+.location-search-results .search-result + .search-result {
+  border-top: 1px solid var(--color-border);
 }
 
 .location-actions {

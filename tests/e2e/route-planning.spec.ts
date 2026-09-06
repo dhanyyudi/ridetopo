@@ -134,7 +134,7 @@ test.describe("route planning journey", () => {
 
     /* Search fills A + map pin fills B */
     await fillJourney(page);
-    await expect(page.getByText("Titik pilihan")).toBeVisible();
+    await expect(page.getByLabel("Tujuan", { exact: true })).toHaveValue("Titik pilihan");
 
     /* CTA sends exactly one route request */
     await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
@@ -355,7 +355,44 @@ test.describe("route planning journey", () => {
     await page.getByRole("button", { name: "Simpan" }).click();
 
     await expect(page.getByText(/Ketuk peta di samping/)).toHaveCount(0);
-    await expect(page.getByText("Titik pilihan").first()).toBeVisible();
+    await expect(page.getByLabel("Titik mulai", { exact: true })).toHaveValue("Titik pilihan");
+  });
+
+  test("searching for a place happens in the row, not over the page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page);
+    await page.goto("/");
+
+    const field = page.locator(".location-field", { hasText: "Titik mulai" });
+    const input = page.getByLabel("Titik mulai", { exact: true });
+
+    /* Typing alone must not call Nominatim: it allows one request a second,
+       so the request belongs to the button, not to the keystroke. */
+    let calls = 0;
+    await page.route("**/search**", async (route) => {
+      calls += 1;
+      await route.fallback();
+    });
+    await input.fill("Monas");
+    await expect(input).toHaveValue("Monas");
+    expect(calls).toBe(0);
+
+    /* Enter searches too — the field is not a dead end for the keyboard. */
+    await input.press("Enter");
+    await expect(page.getByRole("option", { name: /Monumen Nasional/ })).toBeVisible();
+    expect(calls).toBe(1);
+
+    await field.getByRole("button", { name: "Cari", exact: true }).click();
+
+    /* Results land under the field; nothing covers the map or the other point. */
+    await expect(page.locator(".dialog-backdrop")).toHaveCount(0);
+    await expect(page.getByRole("option", { name: /Monumen Nasional/ })).toBeVisible();
+    await expect(page.locator(".app-map")).toBeVisible();
+
+    await page.getByRole("option", { name: /Monumen Nasional/ }).click();
+
+    await expect(input).toHaveValue(/Monumen Nasional/);
+    await expect(page.getByRole("option")).toHaveCount(0);
   });
 
   test("a narrow screen still gets the full-screen picker", async ({ page }) => {

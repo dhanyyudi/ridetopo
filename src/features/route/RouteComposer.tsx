@@ -4,6 +4,7 @@ import { useRoutePlannerStore } from "@/store/route-planner-store";
 import { WaypointList } from "@/features/location/WaypointList";
 import { RoundTripControl } from "./RoundTripControl";
 import type { EditableRouteLocation } from "@/domain/location";
+import type { GeocodingResult } from "@/providers/contracts";
 import type { useRoutePlannerController } from "./use-route-planner-controller";
 import { Navigation } from "lucide-react";
 
@@ -17,11 +18,15 @@ interface Props {
 export function RouteComposer({ controller, offline, inlinePicking = false }: Props) {
   const store = useRoutePlannerStore();
 
-  const handleOpenSearch = useCallback(
-    (loc: EditableRouteLocation) => {
-      store.setSearchDialog({ open: true, targetId: loc.id });
+  const handleSelectSearchResult = useCallback(
+    (loc: EditableRouteLocation, result: GeocodingResult) => {
+      controller.applyLocation(loc.id, {
+        position: result.position,
+        label: result.label.split(",")[0] ?? result.label,
+        source: "search",
+      });
     },
-    [store],
+    [controller],
   );
 
   const handleOpenMapPicker = useCallback(
@@ -66,7 +71,9 @@ export function RouteComposer({ controller, offline, inlinePicking = false }: Pr
           locations={store.locations}
           onAddWaypoint={controller.addWaypoint}
           onRemoveLocation={controller.removeLocation}
-          onOpenSearch={handleOpenSearch}
+          onSearch={controller.searchLocation}
+          onSelectSearchResult={handleSelectSearchResult}
+          offline={offline}
           onOpenMapPicker={handleOpenMapPicker}
           onUseGeolocation={handleUseGeolocation}
           onMoveWaypoint={controller.moveWaypoint}

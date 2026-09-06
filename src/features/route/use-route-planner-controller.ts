@@ -198,7 +198,6 @@ export function useRoutePlannerController() {
         label: value.label,
         source: value.source,
       });
-      state.setSearchDialog({ open: false, targetId: null });
       rerouteIfValid();
     },
     [rerouteIfValid],
