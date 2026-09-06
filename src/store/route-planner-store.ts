@@ -73,6 +73,12 @@ export interface RoutePlannerState {
   /* Distance along the route highlighted by the chart or a map tap */
   chartCursorMeters: number | null;
 
+  /* Planned departure as "HH:MM"; null means "leaving now". */
+  departureTime: string | null;
+
+  /* Point tapped on the main map while placing a location, before saving. */
+  mapPickCandidate: Position | null;
+
   /* Inline notice for the location controls (GPS permission, availability) */
   locationNotice: string | null;
 
@@ -117,6 +123,8 @@ export interface RoutePlannerState {
   setReviewSelection: (selection: ReviewSelection | null) => void;
   setReviewCorridor: (corridor: ReviewCorridor | null) => void;
   setChartCursorMeters: (distanceMeters: number | null) => void;
+  setDepartureTime: (value: string | null) => void;
+  setMapPickCandidate: (position: Position | null) => void;
   setLocationNotice: (notice: string | null) => void;
 
   /* Actions — view state */
@@ -155,6 +163,8 @@ const initialState = {
   reviewSelection: null as ReviewSelection | null,
   reviewCorridor: null as ReviewCorridor | null,
   chartCursorMeters: null as number | null,
+  departureTime: null as string | null,
+  mapPickCandidate: null as Position | null,
   locationNotice: null as string | null,
   appView: "composer" as AppView,
   searchDialog: { open: false, targetId: null } as SearchDialogState,
@@ -261,11 +271,14 @@ export const useRoutePlannerStore = create<RoutePlannerState>((set) => ({
   setReviewSelection: (reviewSelection) => set({ reviewSelection }),
   setReviewCorridor: (reviewCorridor) => set({ reviewCorridor }),
   setChartCursorMeters: (chartCursorMeters) => set({ chartCursorMeters }),
+  setDepartureTime: (departureTime) => set({ departureTime }),
+  setMapPickCandidate: (mapPickCandidate) => set({ mapPickCandidate }),
   setLocationNotice: (locationNotice) => set({ locationNotice }),
 
   setAppView: (appView) => set({ appView }),
   setSearchDialog: (searchDialog) => set({ searchDialog }),
-  setMapPicker: (mapPicker) => set({ mapPicker }),
+  /* Opening or closing the picker always drops any pending candidate. */
+  setMapPicker: (mapPicker) => set({ mapPicker, mapPickCandidate: null }),
   setImagePreview: (imagePreview) => set({ imagePreview }),
   setOffline: (offline) => set({ offline }),
 

@@ -189,7 +189,8 @@ test.describe("route planning journey", () => {
   });
 
   test("map picker keeps its footer inside the viewport without page scroll", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 720 });
+    /* Compact: the full-screen picker only exists where the map is hidden. */
+    await page.setViewportSize({ width: 390, height: 720 });
     await mockProviders(page);
     await page.goto("/");
 
@@ -240,7 +241,7 @@ test.describe("route planning journey", () => {
   });
 
   test("picking on the map shows the pin you just dropped", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize({ width: 390, height: 844 });
     await mockProviders(page);
     await page.goto("/");
 
@@ -332,6 +333,59 @@ test.describe("route planning journey", () => {
     await expect(legend).toContainText("Menanjak");
     await expect(legend).toContainText("Landai");
     await expect(legend).toContainText("Menurun");
+  });
+
+  test("picking a point on a wide screen stays on the page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: /Pilih di peta: Titik mulai/ }).click();
+
+    /* No full-screen dialog: the map is already beside the panel. */
+    await expect(page.locator(".map-picker")).toHaveCount(0);
+    await expect(page.getByText(/Ketuk peta di samping/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Simpan" })).toBeDisabled();
+
+    const map = page.locator(".app-map");
+    const box = (await map.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    await expect(page.getByRole("button", { name: "Simpan" })).toBeEnabled();
+    await page.getByRole("button", { name: "Simpan" }).click();
+
+    await expect(page.getByText(/Ketuk peta di samping/)).toHaveCount(0);
+    await expect(page.getByText("Titik pilihan").first()).toBeVisible();
+  });
+
+  test("a narrow screen still gets the full-screen picker", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockProviders(page);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: /Pilih di peta: Titik mulai/ }).click();
+    /* Compact hides the map behind the composer, so the dialog still earns
+       its place there. */
+    await expect(page.locator(".map-picker")).toHaveCount(1);
+  });
+
+  test("the departure time drives the arrival and the marker labels", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    useStraightRouteResponse = true;
+    await mockProviders(page);
+    await page.goto("/");
+    await fillJourney(page);
+    await page.getByRole("button", { name: "Rencanakan Rute", exact: true }).click();
+    await page.waitForSelector("text=Hasil rute");
+
+    await page.getByLabel(/Rencana jam berangkat/).fill("06:00");
+
+    /* 14,6 km at the mocked 1900 s: 06.00 leaves at 06.31. */
+    await expect(page.getByText(/06[.:]00 → 06[.:]31/)).toBeVisible();
+    await expect(page.locator(".ridetopo-marker.marker-origin .marker-time")).toContainText("06");
+    await expect(page.locator(".ridetopo-marker.marker-destination .marker-time")).toContainText(
+      "06",
+    );
   });
 
   test("a route through a waypoint reports every leg, not just the first", async ({ page }) => {

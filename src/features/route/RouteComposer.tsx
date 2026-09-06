@@ -10,9 +10,11 @@ import { Navigation } from "lucide-react";
 interface Props {
   controller: ReturnType<typeof useRoutePlannerController>;
   offline: boolean;
+  /** True when the map beside the panel is taking the tap, not a dialog. */
+  inlinePicking?: boolean;
 }
 
-export function RouteComposer({ controller, offline }: Props) {
+export function RouteComposer({ controller, offline, inlinePicking = false }: Props) {
   const store = useRoutePlannerStore();
 
   const handleOpenSearch = useCallback(
@@ -71,6 +73,33 @@ export function RouteComposer({ controller, offline }: Props) {
           onSwap={controller.swapDirections}
           onReorder={handleReorder}
         />
+
+        {inlinePicking && (
+          <div className="inline-pick" role="status">
+            <p className="inline-pick-text">{COPY.mapPickInline}</p>
+            <div className="inline-pick-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!store.mapPickCandidate}
+                onClick={() => {
+                  const target = store.mapPicker.targetId;
+                  const candidate = store.mapPickCandidate;
+                  if (target && candidate) controller.applyMapPosition(target, candidate);
+                }}
+              >
+                {COPY.mapPickSave}
+              </button>
+              <button
+                type="button"
+                className="btn btn-tertiary"
+                onClick={() => store.setMapPicker({ open: false, targetId: null })}
+              >
+                {COPY.mapPickCancel}
+              </button>
+            </div>
+          </div>
+        )}
 
         {store.locationNotice && (
           <p className="inline-error" role="status">

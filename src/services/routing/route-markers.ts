@@ -6,6 +6,8 @@ export interface RouteMarker {
   id: string;
   position: Position;
   label: string;
+  /** Shown beside the marker — the clock time at that end of the ride. */
+  sublabel?: string;
   kind: "origin" | "waypoint" | "destination" | "origin-destination";
 }
 
@@ -41,7 +43,10 @@ export function positionAtDistance(
  * coordinates leaves them floating off the line; anchoring them to the route
  * puts each one where the rider will really be.
  */
-export function buildRouteMarkers(route: PlannedRoute): RouteMarker[] {
+export function buildRouteMarkers(
+  route: PlannedRoute,
+  times?: { departureLabel: string; arrivalLabel: string },
+): RouteMarker[] {
   const geometry = route.geometry;
   if (geometry.length < 2) return [];
 
@@ -56,6 +61,14 @@ export function buildRouteMarkers(route: PlannedRoute): RouteMarker[] {
         id: location.id,
         position: geometry[0]!,
         label: "A",
+        /* A round trip starts and finishes here, so it carries both times. */
+        ...(times
+          ? {
+              sublabel: route.input.returnToStart
+                ? `${times.departureLabel} – ${times.arrivalLabel}`
+                : times.departureLabel,
+            }
+          : {}),
         kind: route.input.returnToStart ? "origin-destination" : "origin",
       });
       continue;
@@ -67,7 +80,15 @@ export function buildRouteMarkers(route: PlannedRoute): RouteMarker[] {
       const position = route.input.returnToStart
         ? (outboundEnd ?? geometry[geometry.length - 1]!)
         : geometry[geometry.length - 1]!;
-      markers.push({ id: location.id, position, label: "B", kind: "destination" });
+      markers.push({
+        id: location.id,
+        position,
+        label: "B",
+        /* On a round trip B is the turnaround, so its arrival time is not the
+           end of the ride and is left off rather than guessed. */
+        ...(times && !route.input.returnToStart ? { sublabel: times.arrivalLabel } : {}),
+        kind: "destination",
+      });
       continue;
     }
 

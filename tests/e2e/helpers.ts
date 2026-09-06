@@ -210,6 +210,33 @@ export async function fillJourney(page: Page) {
   await page.getByRole("option", { name: /Monumen Nasional/ }).click();
 
   await page.getByRole("button", { name: /Pilih di peta: Tujuan/ }).click();
+
+  /* Wide layouts place the point on the map beside the panel; compact ones
+     still open the full-screen picker. */
+  const inline = page.locator(".inline-pick");
+  if (await inline.isVisible().catch(() => false)) {
+    await placeInline(page);
+    return;
+  }
+
+  await placeInPickerDialog(page);
+}
+
+async function placeInline(page: Page) {
+  const map = page.locator(".app-map");
+  const box = (await map.boundingBox())!;
+  const save = page.getByRole("button", { name: "Simpan" });
+
+  for (let attempt = 0; attempt < 5 && !(await save.isEnabled()); attempt++) {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(300);
+  }
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.locator(".inline-pick")).toHaveCount(0);
+}
+
+async function placeInPickerDialog(page: Page) {
   await page.waitForSelector(".map-picker-canvas[data-map-ready=true]");
 
   const saveButton = page.getByRole("button", { name: "Simpan" });

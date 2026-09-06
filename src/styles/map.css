@@ -77,3 +77,21 @@
   border-radius: var(--radius-sm);
   box-shadow: 0 2px 8px rgba(20, 32, 30, 0.28);
 }
+
+/* Clock time beside the pin: when the ride starts, and when it ends. */
+.ridetopo-marker .marker-time {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: var(--type-caption);
+  font-weight: 700;
+  color: var(--color-ink);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  box-shadow: 0 1px 4px rgba(20, 32, 30, 0.2);
+  pointer-events: none;
+}

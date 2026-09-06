@@ -542,6 +542,30 @@
 }
 
 /* Map picker */
+.inline-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.inline-pick-text {
+  font-size: var(--type-body-small);
+  color: var(--color-text-secondary);
+}
+
+.inline-pick-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.departure-input {
+  max-width: 9rem;
+}
+
 .map-picker {
   position: fixed;
   inset: 0;
