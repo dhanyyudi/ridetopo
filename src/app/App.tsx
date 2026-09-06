@@ -8,12 +8,15 @@ import { useRoutePlannerController } from "@/features/route/use-route-planner-co
 import { RouteComposer } from "@/features/route/RouteComposer";
 import { RouteResultPanel } from "@/features/route/RouteResultPanel";
 import { RoadReviewPanel } from "@/features/road-review/RoadReviewPanel";
-import { LocationSearchDialog } from "@/features/location/LocationSearchDialog";
 import { MapPicker } from "@/features/location/MapPicker";
 import { ImagePreviewDialog } from "@/features/export/ImagePreviewDialog";
 import { MapCanvas, type MapMarker } from "@/features/map/MapCanvas";
 import { createInitialLocations } from "@/domain/location";
 import { loadPreferences } from "@/services/persistence/preference-storage";
+import { buildRouteMarkers } from "@/services/routing/route-markers";
+import { buildSchedule } from "@/services/routing/route-schedule";
+import { useMediaQuery, WIDE_LAYOUT_QUERY } from "@/lib/use-media-query";
+import { describeRouteAt } from "@/services/routing/describe-route-point";
 import { getRouteElevation } from "@/services/routing/route-elevation";
 import { cumulativeDistances } from "@/services/routing/calculate-overlap";
 import {
@@ -23,7 +26,7 @@ import {
   advanceCorridor,
   corridorRange,
 } from "@/services/road/segment-ranges";
-import { Trash2, RotateCcw } from "lucide-react";
+import { Trash2, RotateCcw, Plus } from "lucide-react";
 import "@/styles/global.css";
 import "@/styles/components.css";
 import "@/styles/map.css";
@@ -50,9 +53,11 @@ function AboutView() {
 function RestorePrompt({
   onRestore,
   onDelete,
+  onStartNew,
 }: {
   onRestore: () => void;
   onDelete: () => void;
+  onStartNew: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -66,6 +71,14 @@ function RestorePrompt({
             <RotateCcw size={16} aria-hidden="true" />
             {COPY.continueDraft}
           </button>
+
+          {/* Leaving the draft alone and planning something else is its own
+              choice, not a way out of the delete confirmation. */}
+          <button type="button" className="btn btn-secondary" onClick={onStartNew}>
+            <Plus size={16} aria-hidden="true" />
+            {COPY.draftKeep}
+          </button>
+
           {confirming ? (
             <>
               <p className="restore-body" role="alert">
@@ -75,7 +88,7 @@ function RestorePrompt({
                 {COPY.draftDeleteConfirm}
               </button>
               <button type="button" className="btn btn-tertiary" onClick={() => setConfirming(false)}>
-                {COPY.draftKeep}
+                {COPY.cancelAvoidance}
               </button>
             </>
           ) : (
@@ -96,6 +109,14 @@ function AppInner() {
 
   const store = useRoutePlannerStore();
   const controller = useRoutePlannerController();
+  /* Wide layouts already show the map beside the panel, so a full-screen
+     picker there only hides the thing being pointed at. Compact layouts hide
+     the map behind the composer and still need the dialog. */
+  const isWide = useMediaQuery(WIDE_LAYOUT_QUERY);
+  /* And a map that cannot render is not a map to point at, so the dialog —
+     which explains itself and offers search — takes over there too. */
+  const [mapUnavailable, setMapUnavailable] = useState(false);
+  const inlinePicking = isWide && store.mapPicker.open && !mapUnavailable;
 
   /* Config + offline */
   useEffect(() => {
@@ -174,33 +195,36 @@ function AppInner() {
 
   const markers = useMemo((): MapMarker[] => {
     const route = store.lastValidRoute;
+    /* Anchored to the route once one exists, so a pin the router snapped to a
+       nearby road does not float off the line. */
     if (route) {
-      return route.input.locations.map((loc) => {
-        if (route.input.returnToStart && loc.role === "origin") {
-          return {
-            id: loc.id,
-            position: loc.position,
-            label: "A",
-            kind: "origin-destination" as const,
-          };
-        }
-        return {
-          id: loc.id,
-          position: loc.position,
-          label: loc.role === "origin" ? "A" : loc.role === "destination" ? "B" : String(route.input.locations.filter((l) => l.role === "waypoint").indexOf(loc) + 1),
-          kind: loc.role === "origin" ? ("origin" as const) : loc.role === "destination" ? ("destination" as const) : ("waypoint" as const),
-        };
-      });
+      const schedule = buildSchedule(route.metrics.durationSeconds, store.departureTime);
+      return buildRouteMarkers(
+        route,
+        schedule
+          ? { departureLabel: schedule.departureLabel, arrivalLabel: schedule.arrivalLabel }
+          : undefined,
+      );
     }
+
+    let waypointNumber = 0;
     return store.locations
       .filter((l) => l.position !== null)
-      .map((l) => ({
-        id: l.id,
-        position: l.position!,
-        label: l.role === "origin" ? "A" : l.role === "destination" ? "B" : String(store.locations.filter((x) => x.role === "waypoint").indexOf(l) + 1),
-        kind: l.role === "origin" ? ("origin" as const) : l.role === "destination" ? ("destination" as const) : ("waypoint" as const),
-      }));
-  }, [store.locations, store.lastValidRoute]);
+      .map((l) => {
+        if (l.role === "waypoint") waypointNumber += 1;
+        return {
+          id: l.id,
+          position: l.position!,
+          label: l.role === "origin" ? "A" : l.role === "destination" ? "B" : String(waypointNumber),
+          kind:
+            l.role === "origin"
+              ? ("origin" as const)
+              : l.role === "destination"
+                ? ("destination" as const)
+                : ("waypoint" as const),
+        };
+      });
+  }, [store.locations, store.lastValidRoute, store.departureTime]);
 
   /**
    * A tap on the route line. In review mode it picks the ruas under the tap —
@@ -250,10 +274,32 @@ function AppInner() {
     });
   }, []);
 
-  const searchTarget = useMemo(() => {
-    if (!store.searchDialog.targetId) return null;
-    return store.locations.find((l) => l.id === store.searchDialog.targetId) ?? null;
-  }, [store.locations, store.searchDialog.targetId]);
+
+  const isResult = store.appView === "result";
+  const isReview = store.appView === "road-review";
+  const activeRoute = store.lastValidRoute;
+  const routeGeometry = activeRoute?.geometry ?? null;
+
+  /* Review mode simplifies the route to one neutral line and highlights the
+     selection; the result map shows terrain colours instead. */
+  const terrain = !isReview && activeRoute ? getRouteElevation(activeRoute).terrain : null;
+
+  /* What the pointer is over: how far along, how high, how steep. */
+  const cursorLabel =
+    activeRoute && store.chartCursorMeters != null && !isReview
+      ? describeRouteAt(activeRoute, store.chartCursorMeters)
+      : null;
+
+  /* Memoised: a fresh array every render would re-fit the map continuously. */
+  const selectionStart = store.reviewSelection?.startShapeIndex ?? null;
+  const selectionEnd = store.reviewSelection?.endShapeIndex ?? null;
+  const selectionGeometry = useMemo(() => {
+    if (!isReview || !activeRoute || selectionStart === null || selectionEnd === null) return null;
+    return activeRoute.geometry.slice(
+      Math.max(0, selectionStart),
+      Math.min(activeRoute.geometry.length, selectionEnd + 1),
+    );
+  }, [isReview, activeRoute, selectionStart, selectionEnd]);
 
   const mapPickerTarget = useMemo(() => {
     if (!store.mapPicker.targetId) return null;
@@ -287,6 +333,7 @@ function AppInner() {
         <RestorePrompt
           onRestore={() => void controller.restoreDraft()}
           onDelete={() => void controller.deleteDraft()}
+          onStartNew={controller.dismissRestorePrompt}
         />
       </AppShell>
     );
@@ -308,28 +355,17 @@ function AppInner() {
     );
   }
 
-  const isResult = store.appView === "result";
-  const isReview = store.appView === "road-review";
-  const activeRoute = store.lastValidRoute;
-  const routeGeometry = activeRoute?.geometry ?? null;
-
-  /* Review mode simplifies the route to one neutral line and highlights the
-     selection; the result map shows terrain colours instead. */
-  const terrain = !isReview && activeRoute ? getRouteElevation(activeRoute).terrain : null;
-
-  const selectionGeometry =
-    isReview && activeRoute && store.reviewSelection
-      ? activeRoute.geometry.slice(
-          Math.max(0, store.reviewSelection.startShapeIndex),
-          Math.min(activeRoute.geometry.length, store.reviewSelection.endShapeIndex + 1),
-        )
-      : null;
-
   return (
     <AppShell offline={store.offline} onNavigate={navigate} activeView={store.appView}>
       <div className={`app-layout ${isResult ? "layout-result" : isReview ? "layout-review" : "layout-composer"}`}>
         <div className="app-panel">
-          {store.appView === "composer" && <RouteComposer controller={controller} offline={store.offline} />}
+          {store.appView === "composer" && (
+            <RouteComposer
+              controller={controller}
+              offline={store.offline}
+              inlinePicking={inlinePicking}
+            />
+          )}
           {isResult && <RouteResultPanel controller={controller} offline={store.offline} />}
           {isReview && (
             <RoadReviewPanel
@@ -345,32 +381,24 @@ function AppInner() {
             routeGeometry={routeGeometry}
             terrain={terrain}
             selectionGeometry={selectionGeometry}
+            focusGeometry={selectionGeometry}
             cursorDistanceMeters={isResult ? store.chartCursorMeters : null}
+            cursorLabel={isResult ? cursorLabel : null}
+            onRouteHover={isResult ? store.setChartCursorMeters : undefined}
+            pickMode={inlinePicking}
+            pickCandidate={store.mapPickCandidate}
+            onPick={inlinePicking ? store.setMapPickCandidate : undefined}
             onRouteClick={handleRouteClick}
             fitPadding={isResult ? 120 : 60}
             offline={store.offline}
+            onBasemapStatusChange={setMapUnavailable}
           />
         </div>
       </div>
 
-      <LocationSearchDialog
-        open={store.searchDialog.open}
-        onClose={() => store.setSearchDialog({ open: false, targetId: null })}
-        onSelect={(result) => {
-          if (searchTarget) {
-            controller.applyLocation(searchTarget.id, {
-              position: result.position,
-              label: result.label.split(",")[0] ?? result.label,
-              source: "search",
-            });
-          }
-        }}
-        onSearch={controller.searchLocation}
-        offline={store.offline}
-      />
 
       <MapPicker
-        open={store.mapPicker.open}
+        open={store.mapPicker.open && !inlinePicking}
         initialPosition={mapPickerTarget?.position ?? null}
         onSave={(position) => {
           if (mapPickerTarget) {

@@ -1,6 +1,8 @@
 import { COPY } from "@/content/id";
 import type { EditableRouteLocation } from "@/domain/location";
-import { MapPin, Search, LocateFixed, X, ChevronUp, ChevronDown } from "lucide-react";
+import type { GeocodingResult } from "@/providers/contracts";
+import { LocationSearchInline } from "./LocationSearchInline";
+import { MapPin, LocateFixed, X, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Props {
   location: EditableRouteLocation;
@@ -8,7 +10,9 @@ interface Props {
   canRemove: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  onOpenSearch: () => void;
+  onSearch: (query: string, signal: AbortSignal) => Promise<readonly GeocodingResult[]>;
+  onSelectSearchResult: (result: GeocodingResult) => void;
+  offline: boolean;
   onOpenMapPicker: () => void;
   onUseGeolocation: () => void;
   onRemove: () => void;
@@ -23,7 +27,9 @@ export function LocationField({
   canRemove,
   canMoveUp,
   canMoveDown,
-  onOpenSearch,
+  onSearch,
+  onSelectSearchResult,
+  offline,
   onOpenMapPicker,
   onUseGeolocation,
   onRemove,
@@ -53,17 +59,13 @@ export function LocationField({
           {fieldLabel}
         </label>
 
-        <button
-          type="button"
-          className="location-value"
-          aria-labelledby={`location-label-${location.id}`}
-          onClick={onOpenSearch}
-        >
-          <Search size={16} aria-hidden="true" />
-          <span className={location.position ? "filled" : "placeholder"}>
-            {location.position && location.label ? location.label : COPY.searchPlaceholder}
-          </span>
-        </button>
+        <LocationSearchInline
+          labelId={`location-label-${location.id}`}
+          value={location.position && location.label ? location.label : ""}
+          onSearch={onSearch}
+          onSelect={onSelectSearchResult}
+          offline={offline}
+        />
 
         <div className="location-actions">
           <button

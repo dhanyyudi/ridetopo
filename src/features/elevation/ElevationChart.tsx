@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ElevationSample } from "@/domain/route";
-import type { TerrainSection } from "@/domain/elevation";
+import type { TerrainSection, TerrainClass } from "@/domain/elevation";
 import { COPY } from "@/content/id";
 import { formatDistance, formatElevation } from "@/lib/format-id";
 import { TERRAIN_COLORS } from "@/features/map/map-layers";
@@ -15,7 +15,7 @@ interface Props {
 
 const PADDING = { top: 16, right: 12, bottom: 26, left: 44 };
 
-export function ElevationChart({ samples, terrain, height = 190, cursor, onCursorChange }: Props) {
+export function ElevationChart({ samples, terrain, height = 220, cursor, onCursorChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
 
@@ -68,18 +68,53 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
   const toX = (d: number) => PADDING.left + d * distScale;
   const toY = (e: number) => PADDING.top + chartH - (e - minElev) * elevScale;
 
-  /* Broken path segments across null gaps */
-  const segments: string[] = [];
+  /* The line carries the terrain colour itself. A tinted band behind a plain
+     teal line left people guessing which stretch was which. */
+  const classAt = (distanceMeters: number): TerrainClass | null => {
+    for (const section of terrain) {
+      if (
+        distanceMeters >= section.startDistanceMeters &&
+        distanceMeters <= section.endDistanceMeters
+      ) {
+        return section.classification;
+      }
+    }
+    return null;
+  };
+
+  const segments: { d: string; color: string }[] = [];
   let current: string[] = [];
+  let currentClass: TerrainClass | null = null;
+
+  const flush = () => {
+    if (current.length >= 2) {
+      segments.push({
+        d: `M${current.join(" L")}`,
+        color: TERRAIN_COLORS[currentClass ?? "flat"],
+      });
+    }
+    current = [];
+  };
+
   for (const s of samples) {
     if (s.elevationMeters === null) {
-      if (current.length >= 2) segments.push(`M${current.join(" L")}`);
-      current = [];
+      flush();
+      currentClass = null;
       continue;
     }
-    current.push(`${toX(s.distanceMeters).toFixed(1)},${toY(s.elevationMeters).toFixed(1)}`);
+    const point = `${toX(s.distanceMeters).toFixed(1)},${toY(s.elevationMeters).toFixed(1)}`;
+    const sampleClass = classAt(s.distanceMeters);
+
+    if (current.length > 0 && sampleClass !== currentClass) {
+      /* Carry the joint into the next run so the line has no gaps. */
+      const joint = current[current.length - 1]!;
+      flush();
+      current = [joint];
+    }
+    currentClass = sampleClass;
+    current.push(point);
   }
-  if (current.length >= 2) segments.push(`M${current.join(" L")}`);
+  flush();
 
   const terrainBands = terrain.map((section, idx) => {
     const x1 = toX(section.startDistanceMeters);
@@ -93,7 +128,7 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
         width={Math.max(1.5, x2 - x1)}
         height={chartH}
         fill={color}
-        opacity={0.12}
+        opacity={0.08}
       />
     );
   });
@@ -169,10 +204,10 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
           onCursorChange(Math.max(0, Math.min(maxDist, (cursor ?? 0) + step)));
         },
         onClick: (e: React.MouseEvent) => handlePointer(e.clientX),
-        onPointerMove: (e: React.PointerEvent) => {
-          if (e.pointerType === "mouse" && e.buttons === 0) return;
-          handlePointer(e.clientX);
-        },
+        /* Plain hover, no button held: reading the profile should not require
+           dragging it. Touch only emits pointermove while a finger is down,
+           so the same handler serves both. */
+        onPointerMove: (e: React.PointerEvent) => handlePointer(e.clientX),
       }
     : { role: "img", "aria-label": COPY.elevationChartLabel };
 
@@ -186,13 +221,13 @@ export function ElevationChart({ samples, terrain, height = 190, cursor, onCurso
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         {terrainBands}
         {yTicks}
-        {segments.map((d, i) => (
+        {segments.map((segment, i) => (
           <path
             key={i}
-            d={d}
+            d={segment.d}
             fill="none"
-            stroke={TERRAIN_COLORS.flat}
-            strokeWidth={2.5}
+            stroke={segment.color}
+            strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

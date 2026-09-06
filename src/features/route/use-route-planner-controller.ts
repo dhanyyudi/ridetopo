@@ -198,7 +198,6 @@ export function useRoutePlannerController() {
         label: value.label,
         source: value.source,
       });
-      state.setSearchDialog({ open: false, targetId: null });
       rerouteIfValid();
     },
     [rerouteIfValid],
@@ -465,6 +464,13 @@ export function useRoutePlannerController() {
     });
   }, []);
 
+  /** Keep the saved draft, but get on with planning something new. */
+  const dismissRestorePrompt = useCallback((): void => {
+    const state = useRoutePlannerStore.getState();
+    state.setRestorePromptOpen(false);
+    state.setAppView("composer");
+  }, []);
+
   const deleteDraft = useCallback(async (): Promise<void> => {
     await draftRepository.clear();
     useRoutePlannerStore.getState().setDraftAvailable(false);
@@ -608,6 +614,7 @@ export function useRoutePlannerController() {
     /* Draft */
     restoreDraft,
     deleteDraft,
+    dismissRestorePrompt,
     /* Export */
     exportGpx,
     prepareImage,

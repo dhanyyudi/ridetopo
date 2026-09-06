@@ -39,6 +39,25 @@ export function createValhallaProvider(): RoutingProvider {
     );
 
     if (!result.ok) {
+      /* Developer-facing only: the UI shows the Indonesian copy below, never
+         the server's own words. Without this line a production report gives
+         us a bare 400 and nothing to act on. */
+      console.warn(
+        "[ridetopo] Valhalla /route failed",
+        JSON.stringify({
+          status: result.status ?? null,
+          code: result.code ?? null,
+          detail: result.error,
+          penalised: Boolean(body.linear_cost_factors),
+          shapeChars:
+            typeof body.linear_cost_factors?.[0]?.shape === "string"
+              ? body.linear_cost_factors[0].shape.length
+              : 0,
+          locations: body.locations.length,
+          exclusions: body.exclude_locations?.length ?? 0,
+          alternates: body.alternates ?? 0,
+        }),
+      );
       throw new ValhallaResponseError("Gagal menghubungi server rute.");
     }
 

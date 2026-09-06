@@ -9,8 +9,8 @@ browser; tidak ada akun, tidak ada server aplikasi, tidak ada pelacakan.
 🔗 **[ridetopo.pages.dev](https://ridetopo.pages.dev)**
 
 > **Status: pratinjau publik, belum siap produksi.**
-> Seluruh alur rilis pertama sudah lengkap dan terbukti lewat 198 tes
-> unit/integrasi serta 109 tes end-to-end. Yang belum: QA pada perangkat
+> Seluruh alur rilis pertama sudah lengkap dan terbukti lewat 212 tes
+> unit/integrasi serta 127 tes end-to-end. Yang belum: QA pada perangkat
 > Android dan iOS sungguhan, serta pengukuran performa lapangan
 > (LCP/INP/CLS). Keduanya syarat sebelum produksi.
 

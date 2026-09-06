@@ -4,22 +4,29 @@ import { useRoutePlannerStore } from "@/store/route-planner-store";
 import { WaypointList } from "@/features/location/WaypointList";
 import { RoundTripControl } from "./RoundTripControl";
 import type { EditableRouteLocation } from "@/domain/location";
+import type { GeocodingResult } from "@/providers/contracts";
 import type { useRoutePlannerController } from "./use-route-planner-controller";
 import { Navigation } from "lucide-react";
 
 interface Props {
   controller: ReturnType<typeof useRoutePlannerController>;
   offline: boolean;
+  /** True when the map beside the panel is taking the tap, not a dialog. */
+  inlinePicking?: boolean;
 }
 
-export function RouteComposer({ controller, offline }: Props) {
+export function RouteComposer({ controller, offline, inlinePicking = false }: Props) {
   const store = useRoutePlannerStore();
 
-  const handleOpenSearch = useCallback(
-    (loc: EditableRouteLocation) => {
-      store.setSearchDialog({ open: true, targetId: loc.id });
+  const handleSelectSearchResult = useCallback(
+    (loc: EditableRouteLocation, result: GeocodingResult) => {
+      controller.applyLocation(loc.id, {
+        position: result.position,
+        label: result.label.split(",")[0] ?? result.label,
+        source: "search",
+      });
     },
-    [store],
+    [controller],
   );
 
   const handleOpenMapPicker = useCallback(
@@ -64,13 +71,42 @@ export function RouteComposer({ controller, offline }: Props) {
           locations={store.locations}
           onAddWaypoint={controller.addWaypoint}
           onRemoveLocation={controller.removeLocation}
-          onOpenSearch={handleOpenSearch}
+          onSearch={controller.searchLocation}
+          onSelectSearchResult={handleSelectSearchResult}
+          offline={offline}
           onOpenMapPicker={handleOpenMapPicker}
           onUseGeolocation={handleUseGeolocation}
           onMoveWaypoint={controller.moveWaypoint}
           onSwap={controller.swapDirections}
           onReorder={handleReorder}
         />
+
+        {inlinePicking && (
+          <div className="inline-pick" role="status">
+            <p className="inline-pick-text">{COPY.mapPickInline}</p>
+            <div className="inline-pick-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!store.mapPickCandidate}
+                onClick={() => {
+                  const target = store.mapPicker.targetId;
+                  const candidate = store.mapPickCandidate;
+                  if (target && candidate) controller.applyMapPosition(target, candidate);
+                }}
+              >
+                {COPY.mapPickSave}
+              </button>
+              <button
+                type="button"
+                className="btn btn-tertiary"
+                onClick={() => store.setMapPicker({ open: false, targetId: null })}
+              >
+                {COPY.mapPickCancel}
+              </button>
+            </div>
+          </div>
+        )}
 
         {store.locationNotice && (
           <p className="inline-error" role="status">

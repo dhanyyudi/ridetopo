@@ -43,6 +43,8 @@ export function RouteResultPanel({ controller, offline }: Props) {
           metrics={route.metrics}
           roundTrip={route.input.returnToStart}
           limitedReturn={route.limitedReturnAlternatives}
+          departureTime={store.departureTime}
+          onDepartureTimeChange={store.setDepartureTime}
         />
 
         {route.input.returnToStart && (
@@ -60,7 +62,7 @@ export function RouteResultPanel({ controller, offline }: Props) {
             <ElevationChart
               samples={elevation.samples}
               terrain={elevation.terrain}
-              height={190}
+              height={220}
               cursor={store.chartCursorMeters}
               onCursorChange={store.setChartCursorMeters}
             />

@@ -179,5 +179,5 @@ test("draft deletion requires confirmation and clears the route", async ({ page 
 
   /* Back to a fresh composer with empty A/B */
   await expect(page.getByText("Rencanakan rute", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Cari lokasi...").first()).toBeVisible();
+  await expect(page.getByLabel("Titik mulai", { exact: true })).toHaveValue("");
 });

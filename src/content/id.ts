@@ -29,6 +29,7 @@ export const COPY = {
   editRoute: "Ubah rute",
   mapPickTitle: "Pilih di peta",
   mapPickHint: "Ketuk peta untuk memilih lokasi.",
+  mapPickInline: "Ketuk peta di samping untuk menempatkan titik ini.",
   mapPickUnavailable: "Peta tidak dapat ditampilkan. Gunakan pencarian lokasi untuk menentukan titik.",
   mapPickSave: "Simpan",
   mapPickCancel: "Batal",
@@ -66,6 +67,16 @@ export const COPY = {
   routeDistance: "Jarak",
   routeDuration: "Estimasi waktu bersepeda",
   durationDisclaimer: "Belum termasuk waktu berhenti.",
+  routeSpeed: "Kecepatan rata-rata",
+  routeSchedule: "Perkiraan waktu tempuh",
+  scheduleDepartNow: "Berangkat sekarang",
+  scheduleDepartureLabel: "Rencana jam berangkat",
+  scheduleDepartureHelper: "Kosongkan untuk memakai waktu sekarang.",
+  scheduleDepartNowShort: "sekarang",
+  markerStartAt: "Berangkat",
+  markerArriveAt: "Tiba",
+  scheduleArrive: "tiba sekitar",
+  scheduleDisclaimer: "Dihitung dari estimasi mesin rute, bukan dari catatan perjalanan.",
   elevationGain: "Elevasi naik",
   elevationLoss: "Elevasi turun",
   elevationUnavailable: "Data elevasi belum tersedia untuk rute ini.",
@@ -214,4 +225,22 @@ export function formatDuration(seconds: number): string {
 
 export function formatPercentage(ratio: number): string {
   return `${Math.round(ratio * 100)}%`;
+}
+
+/** Average pace over the whole ride, from the engine's own duration. */
+export function formatSpeed(meters: number, seconds: number): string | null {
+  if (!Number.isFinite(meters) || !Number.isFinite(seconds) || seconds <= 0) return null;
+  const kmPerHour = meters / 1000 / (seconds / 3600);
+  if (!Number.isFinite(kmPerHour) || kmPerHour <= 0) return null;
+  return `${new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(kmPerHour)} km/jam`;
+}
+
+export function formatClockTime(date: Date): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

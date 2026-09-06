@@ -64,7 +64,7 @@ const TRACE_RESPONSE = {
 let requestLog: RouteCallLog[] = [];
 let failNextReroute = false;
 
-async function mockProviders(page: Page) {
+async function mockProviders(page: Page, options: { segments?: number } = {}) {
   mockNominatim(page);
   await page.route("**/route", trackRouteCalls(requestLog, (body) => {
     if (failNextReroute) {
@@ -92,9 +92,29 @@ async function mockProviders(page: Page) {
     return outboundResponse();
   }));
   await page.route("**/trace_attributes", (route: Route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACE_RESPONSE) }),
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        options.segments ? { edges: manySegments(options.segments) } : TRACE_RESPONSE,
+      ),
+    }),
   );
   mockTiles(page);
+}
+
+/** A trace long enough that the list cannot fit on one screen. */
+function manySegments(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    begin_shape_index: i,
+    end_shape_index: i + 1,
+    names: [],
+    road_class: "residential",
+    surface: "paved_smooth",
+    unpaved: false,
+    use: "road",
+    way_id: 1000 + i,
+  }));
 }
 
 test.beforeEach(() => {
@@ -103,6 +123,32 @@ test.beforeEach(() => {
 });
 
 test.describe("road review", () => {
+  test("a long segment list scrolls inside the panel, not the page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockProviders(page, { segments: 220 });
+    await page.goto("/");
+    await planJourney(page);
+    await page.getByRole("button", { name: "Tinjau ruas jalan" }).click();
+    await expect(page.locator(".segment-item").first()).toBeVisible();
+
+    /* The panel owns the scrollbar. If it does not, the whole layout grows and
+       the map is dragged down the page with it. */
+    const scroller = page.locator(".review-scroll");
+    const metrics = await scroller.evaluate((el) => ({
+      scrollable: el.scrollHeight - el.clientHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(metrics.scrollable).toBeGreaterThan(0);
+    expect(metrics.clientHeight).toBeLessThanOrEqual(900);
+
+    const page_ = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollHeight - window.innerHeight,
+      mapHeight: document.querySelector(".app-map")?.getBoundingClientRect().height ?? 0,
+    }));
+    expect(page_.overflow).toBeLessThanOrEqual(1);
+    expect(page_.mapHeight).toBeLessThanOrEqual(900);
+  });
+
   test("opens review lazily, selects a segment from the list, and applies avoidance", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockProviders(page);
