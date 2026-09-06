@@ -195,6 +195,33 @@ if (existsSync(manifestPath)) {
   }
 }
 
+/* The worker is how a release reaches someone who has opened the site before.
+   Built with registerType "prompt" and no prompt in the app, it installs and
+   then waits forever — which is how three releases went live without reaching
+   returning visitors. These checks fail the build if that regresses. */
+const swPath = resolve(DIST, "sw.js");
+check(existsSync(swPath), "service worker exists");
+if (existsSync(swPath)) {
+  const sw = readFileSync(swPath, "utf-8");
+  /* Both modes call self.skipWaiting(); only "prompt" gates it behind a
+     SKIP_WAITING message that the app has to send. Its absence is the proof
+     that the worker activates without being asked. */
+  check(!sw.includes("SKIP_WAITING"), "service worker activates without being asked");
+  check(sw.includes("clientsClaim"), "service worker claims open clients");
+  check(sw.includes("cleanupOutdatedCaches"), "service worker drops stale precaches");
+}
+
+if (existsSync(headersPath)) {
+  const headers = readFileSync(headersPath, "utf-8");
+  for (const path of ["/sw.js", "/registerSW.js"]) {
+    const block = headers.split(/\n(?=\/)/).find((b) => b.startsWith(`${path}\n`));
+    check(
+      Boolean(block?.includes("Cache-Control: no-cache")),
+      `${path} is served no-cache`,
+    );
+  }
+}
+
 console.log(`\nBuild verification: ${checks} checks.`);
 if (exitCode === 0) {
   console.log("Build verification passed.");

@@ -93,6 +93,10 @@ async function waitForDraftSaved(page: Page) {
     .toBe(true);
 }
 
+/* The service worker is the subject here: it is what serves the shell when
+   the network is gone. Every other spec blocks it. */
+test.use({ serviceWorkers: "allow" });
+
 test("offline journey: plan, save, restore with consent, export offline", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
